@@ -1,11 +1,17 @@
 
-import { Colors } from "@/constants/colors";
-import { useOrderDraftStore } from "@/stores/orderDraftStore";
+import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import type { AppColors } from "@/constants/colors";
+import { useTheme } from "@/providers/ThemeProvider";
+import { useOrderDraftStore } from "@/stores/orderDraftStore";
+
 export default function NewOrderScreen() {
   const items = useOrderDraftStore((state) => state.items);
+
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -30,54 +36,56 @@ export default function NewOrderScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  content: {
-    padding: 22,
-    gap: 14,
-  },
+    content: {
+      padding: 22,
+      gap: 14,
+    },
 
-  eyebrow: {
-    color: Colors.primary,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-  },
+    eyebrow: {
+      color: colors.primary,
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 1.5,
+    },
 
-  title: {
-    color: Colors.text,
-    fontSize: 28,
-    fontWeight: "800",
-  },
+    title: {
+      color: colors.text,
+      fontSize: 28,
+      fontWeight: "800",
+    },
 
-  description: {
-    color: Colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 21,
-  },
+    description: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 21,
+    },
 
-  card: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 17,
-    padding: 18,
-    marginTop: 10,
-    gap: 7,
-  },
+    card: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 17,
+      padding: 18,
+      marginTop: 10,
+      gap: 7,
+    },
 
-  cardTitle: {
-    color: Colors.textSecondary,
-    fontSize: 11,
-  },
+    cardTitle: {
+      color: colors.textSecondary,
+      fontSize: 11,
+    },
 
-  cardValue: {
-    color: Colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-});
+    cardValue: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: "800",
+    },
+  });
+}

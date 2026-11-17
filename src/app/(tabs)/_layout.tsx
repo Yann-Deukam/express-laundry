@@ -7,12 +7,17 @@ import {
   Plus,
   Users,
 } from "lucide-react-native";
+import { useMemo } from "react";
 import { Pressable, StyleSheet } from "react-native";
 
-import { Colors } from "@/constants/colors";
+import type { AppColors } from "@/constants/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 function NewOrderButton() {
   const router = useRouter();
+  const { colors } = useTheme();
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <Pressable
@@ -21,18 +26,22 @@ function NewOrderButton() {
       accessibilityRole="button"
       accessibilityLabel="Create new order"
     >
-      <Plus color={Colors.white} size={27} strokeWidth={2.5} />
+      <Plus color={colors.white} size={27} strokeWidth={2.5} />
     </Pressable>
   );
 }
 
 export default function AppLayout() {
+  const { colors } = useTheme();
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarLabelStyle: styles.label,
         tabBarStyle: styles.tabBar,
         tabBarItemStyle: styles.tabItem,
@@ -90,38 +99,40 @@ export default function AppLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  tabBar: {
-    height: 72,
-    paddingTop: 9,
-    paddingBottom: 8,
-    paddingHorizontal: 8,
-    backgroundColor: Colors.surface,
-    borderTopColor: Colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    elevation: 10,
-  },
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    tabBar: {
+      height: 72,
+      paddingTop: 9,
+      paddingBottom: 8,
+      paddingHorizontal: 8,
+      backgroundColor: colors.surface,
+      borderTopColor: colors.border,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      elevation: 10,
+    },
 
-  tabItem: {
-    paddingVertical: 2,
-  },
+    tabItem: {
+      paddingVertical: 2,
+    },
 
-  label: {
-    fontSize: 10,
-    fontWeight: "600",
-    marginTop: 3,
-  },
+    label: {
+      fontSize: 10,
+      fontWeight: "600",
+      marginTop: 3,
+    },
 
-  addButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    marginTop: -19,
-    borderWidth: 4,
-    borderColor: Colors.background,
-  },
-});
+    addButton: {
+      width: 54,
+      height: 54,
+      borderRadius: 18,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      alignSelf: "center",
+      marginTop: -19,
+      borderWidth: 4,
+      borderColor: colors.background,
+    },
+  });
+}

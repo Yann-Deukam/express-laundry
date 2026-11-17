@@ -1,23 +1,22 @@
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import { Stack } from "expo-router";
+import { useEffect, useState } from "react";
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { onlineManager } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { useEffect, useState } from "react";
 
 import { SplashScreen } from "../components/auth/SplashScreen";
 import { queryClient } from "../lib/queryClient";
 import { AuthProvider, useAuth } from "../providers/AuthProvider";
+import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
 
 const persister = createAsyncStoragePersister({
   storage: AsyncStorage,
   key: "express-laundry-query-cache",
 });
-
-const MINIMUM_SPLASH_DURATION = 2500;
 
 onlineManager.setEventListener((setOnline) =>
   NetInfo.addEventListener((state) => {
@@ -27,17 +26,19 @@ onlineManager.setEventListener((setOnline) =>
 
 function RootNavigator() {
   const { session, loading } = useAuth();
+  const { isLoading: themeLoading } = useTheme();
+
   const [splashFinished, setSplashFinished] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setSplashFinished(true);
-    }, MINIMUM_SPLASH_DURATION);
+    }, 2500);
 
     return () => clearTimeout(timer);
   }, []);
 
-  if (loading || !splashFinished) {
+  if (loading || themeLoading || !splashFinished) {
     return <SplashScreen />;
   }
 
@@ -65,9 +66,11 @@ export default function RootLayout() {
         maxAge: 1000 * 60 * 60 * 24,
       }}
     >
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </ThemeProvider>
     </PersistQueryClientProvider>
   );
 }
