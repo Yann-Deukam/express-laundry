@@ -1,17 +1,13 @@
-import { Text, View, StyleSheet } from "react-native";
+
+import { Redirect } from "expo-router";
+import { useAuth } from "../providers/AuthProvider";
 
 export default function Index() {
-  return (
-    <View style={styles.container}>
-      <Text>Edit src/app/index.tsx to edit this screen.</Text>
-    </View>
-  );
-}
+  const { session } = useAuth();
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+  if (session) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return <Redirect href="/(auth)/login" />;
+}
