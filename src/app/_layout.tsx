@@ -8,7 +8,8 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { onlineManager } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 
-import { SplashScreen } from "../components/auth/SplashScreen";
+
+import { SplashScreen } from "@/components/auth/SplashScreen";
 import { queryClient } from "../lib/queryClient";
 import { AuthProvider, useAuth } from "../providers/AuthProvider";
 import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
