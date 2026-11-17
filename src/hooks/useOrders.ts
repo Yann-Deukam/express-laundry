@@ -1,24 +1,49 @@
 
 import {
-    useMutation,
-    useQuery,
-    useQueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 
 import {
-    createOrder,
-    getOrder,
-    getOrders,
-    updateOrderStatus,
-    type CreateOrderInput,
-    type OrderStatus,
+  getOrder,
+  getOrders,
+  updateOrderDelivery,
+  updateOrderPayment,
+  updateOrderStatus,
+  updateOrderWashed,
+  type OrderStatus,
 } from "@/services/orderService";
+
+import {
+  saveLaundryOrder,
+  type SaveLaundryOrderInput,
+} from "@/services/laundryOrderService";
 
 export const orderKeys = {
   all: ["orders"] as const,
   lists: () => [...orderKeys.all, "list"] as const,
   detail: (id: string) => [...orderKeys.all, "detail", id] as const,
 };
+
+async function refreshOrderQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  updatedOrder: Awaited<ReturnType<typeof getOrder>>
+) {
+  await Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: orderKeys.all,
+    }),
+    queryClient.invalidateQueries({
+      queryKey: ["dashboard"],
+    }),
+  ]);
+
+  queryClient.setQueryData(
+    orderKeys.detail(updatedOrder.id),
+    updatedOrder
+  );
+}
 
 export function useOrders() {
   return useQuery({
@@ -35,20 +60,22 @@ export function useOrder(id: string) {
   });
 }
 
-export function useCreateOrder() {
+export function useCreateLaundryOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: CreateOrderInput) => createOrder(input),
+    mutationFn: (input: SaveLaundryOrderInput) =>
+      saveLaundryOrder(input),
 
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: orderKeys.all,
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: ["dashboard"],
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orderKeys.all,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["dashboard"],
+        }),
+      ]);
     },
   });
 }
@@ -66,18 +93,61 @@ export function useUpdateOrderStatus() {
     }) => updateOrderStatus(id, status),
 
     onSuccess: async (updatedOrder) => {
-      await queryClient.invalidateQueries({
-        queryKey: orderKeys.all,
-      });
+      await refreshOrderQueries(queryClient, updatedOrder);
+    },
+  });
+}
 
-      await queryClient.invalidateQueries({
-        queryKey: ["dashboard"],
-      });
+export function useUpdateOrderDelivery() {
+  const queryClient = useQueryClient();
 
-      queryClient.setQueryData(
-        orderKeys.detail(updatedOrder.id),
-        updatedOrder
-      );
+  return useMutation({
+    mutationFn: ({
+      id,
+      isDelivered,
+    }: {
+      id: string;
+      isDelivered: boolean;
+    }) => updateOrderDelivery(id, isDelivered),
+
+    onSuccess: async (updatedOrder) => {
+      await refreshOrderQueries(queryClient, updatedOrder);
+    },
+  });
+}
+
+export function useUpdateOrderWashed() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      isWashed,
+    }: {
+      id: string;
+      isWashed: boolean;
+    }) => updateOrderWashed(id, isWashed),
+
+    onSuccess: async (updatedOrder) => {
+      await refreshOrderQueries(queryClient, updatedOrder);
+    },
+  });
+}
+
+export function useUpdateOrderPayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      amountPaid,
+    }: {
+      id: string;
+      amountPaid: number;
+    }) => updateOrderPayment(id, amountPaid),
+
+    onSuccess: async (updatedOrder) => {
+      await refreshOrderQueries(queryClient, updatedOrder);
     },
   });
 }

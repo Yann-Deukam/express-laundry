@@ -1,64 +1,50 @@
-
 import { create } from "zustand";
 
-export interface DraftItem {
-  id: string;
-  dress_type: string;
-  pack: "per_kg_500" | "per_kg_1000" | "custom";
-  weight_kg: number | null;
-  custom_price: number | null;
-  price_override: number | null;
-  photo_uri: string | null;
-  notes: string[];
-}
+export type PricingPack = "per_kg_500" | "per_kg_1000" | "custom";
 
 interface OrderDraftState {
   clientId: string | null;
   pickupDate: string;
   deliveryDate: string;
-  items: DraftItem[];
+  weightKg: string;
+  pack: PricingPack;
+  customPrice: string;
+  photoUri: string | null;
 
-  setClient: (clientId: string) => void;
+  setClient: (id: string | null) => void;
   setPickupDate: (date: string) => void;
   setDeliveryDate: (date: string) => void;
-  addItem: (item: DraftItem) => void;
-  updateItem: (id: string, updates: Partial<DraftItem>) => void;
-  removeItem: (id: string) => void;
+  setWeightKg: (weight: string) => void;
+  setPack: (pack: PricingPack) => void;
+  setCustomPrice: (price: string) => void;
+  setPhotoUri: (uri: string | null) => void;
   resetDraft: () => void;
 }
 
-const initialState = {
-  clientId: null,
-  pickupDate: new Date().toISOString(),
-  deliveryDate: "",
-  items: [],
-};
+function getInitialState() {
+  const today = new Date();
+
+  return {
+    clientId: null,
+    pickupDate: today.toISOString(),
+    deliveryDate: "",
+    weightKg: "",
+    pack: "per_kg_500" as PricingPack,
+    customPrice: "",
+    photoUri: null,
+  };
+}
 
 export const useOrderDraftStore = create<OrderDraftState>((set) => ({
-  ...initialState,
+  ...getInitialState(),
 
   setClient: (clientId) => set({ clientId }),
-
   setPickupDate: (pickupDate) => set({ pickupDate }),
-
   setDeliveryDate: (deliveryDate) => set({ deliveryDate }),
+  setWeightKg: (weightKg) => set({ weightKg }),
+  setPack: (pack) => set({ pack }),
+  setCustomPrice: (customPrice) => set({ customPrice }),
+  setPhotoUri: (photoUri) => set({ photoUri }),
 
-  addItem: (item) =>
-    set((state) => ({
-      items: [...state.items, item],
-    })),
-
-  updateItem: (id, updates) =>
-    set((state) => ({
-      items: state.items.map((item) =>
-        item.id === id ? { ...item, ...updates } : item
-      ),
-    })),
-
-  removeItem: (id) =>
-    set((state) => ({
-      items: state.items.filter((item) => item.id !== id),
-    })),
-
-  resetDraft: () => set({ ...initialState }),
+  resetDraft: () => set(getInitialState()),
 }));
