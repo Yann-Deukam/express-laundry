@@ -2,9 +2,9 @@
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import {
+    BadgeCheck,
     CalendarDays,
     Check,
-    ChevronRight,
     CreditCard,
     Droplets,
     Plus,
@@ -12,7 +12,7 @@ import {
     Shirt,
     Truck,
     Weight,
-    X,
+    X
 } from "lucide-react-native";
 import type { ComponentRef } from "react";
 import { useMemo, useRef, useState } from "react";
@@ -226,122 +226,81 @@ export default function OrdersScreen() {
   }
 
   function renderOrder({ item }: { item: Order }) {
-    const balance = Math.max(
-      Number(item.total) - Number(item.amount_paid),
-      0
-    );
+  const total = Number(item.total) || 0;
+  const paid = Number(item.amount_paid) || 0;
+  const balance = Math.max(total - paid, 0);
+  const isPaid = total > 0 && paid >= total;
 
-    const statusColor = getStatusColor(item.status, colors);
-    const photo = item.items?.[0]?.photo_signed_url;
+  const photo = item.items?.[0]?.photo_signed_url;
+  const firstItem = item.items?.[0];
+  const itemCount = item.items?.length ?? 0;
+  const weight =
+    firstItem?.weight_kg != null ? `${Number(firstItem.weight_kg)} kg` : "No weight";
 
-    const isPaid =
-      Number(item.amount_paid) >= Number(item.total) &&
-      Number(item.total) > 0;
-
-    
-return (
-  <Pressable
-    style={({ pressed }) => [
-      styles.card,
-      pressed && styles.cardPressed,
-    ]}
-    onPress={() => openOrder(item)}
-  >
-    {photo ? (
-      <Image
-        source={{ uri: photo }}
-        style={styles.thumbnail}
-        resizeMode="cover"
-      />
-    ) : (
-      <View style={styles.photoPlaceholder}>
-        <Shirt color={colors.primary} size={32} />
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      onPress={() => openOrder(item)}
+    >
+      <View style={styles.cardImageWrap}>
+        {photo ? (
+          <Image
+            source={{ uri: photo }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.cardImage, styles.photoPlaceholder]}>
+            <Shirt color={colors.primary} size={32} />
+          </View>
+        )}
       </View>
-    )}
 
-    <View style={styles.cardBody}>
-      <View style={styles.cardTop}>
-        <View style={styles.clientInfo}>
+      <View style={styles.cardContent}>
+        <View style={styles.nameRow}>
           <Text style={styles.clientName} numberOfLines={1}>
             {item.clients?.name ?? "Unknown client"}
           </Text>
 
-          <Text style={styles.phone}>
-            {item.clients?.phone ?? "No phone number"}
-          </Text>
+          {isPaid && (
+            <BadgeCheck size={18} color={colors.success} />
+          )}
+        </View>
 
-          <View style={styles.statusRow}>
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: statusColor },
-              ]}
-            />
+        <Text style={styles.description} numberOfLines={2}>
+          {getPricingLabel(firstItem?.pack)} · {getStatusLabel(item.status)}
+          {balance > 0 ? ` · ${money(balance)} due` : ""}
+        </Text>
 
-            <Text style={[styles.status, { color: statusColor }]}>
-              {getStatusLabel(item.status)}
-            </Text>
+        <View style={styles.cardFooter}>
+          <View style={styles.stats}>
+            <View style={styles.stat}>
+              <Weight size={15} color={colors.textSecondary} />
+              <Text style={styles.statText}>{weight}</Text>
+            </View>
+
+            <View style={styles.stat}>
+              <Shirt size={15} color={colors.textSecondary} />
+              <Text style={styles.statText}>{itemCount}</Text>
+            </View>
+
+            <View style={styles.stat}>
+              <Truck size={15} color={colors.textSecondary} />
+              <Text style={styles.statText}>
+                {formatDate(item.delivery_date)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.pillButton}>
+            {/* <Text style={styles.pillButtonText}>Details</Text> */}
+            <Plus size={16} color={colors.text} />
           </View>
         </View>
-
-        <View style={styles.cardRight}>
-          <Text style={styles.totalAmount}>
-            {money(Number(item.total))}
-          </Text>
-
-          <ChevronRight size={17} color={colors.textSecondary} />
-        </View>
       </View>
-
-      <View style={styles.divider} />
-
-      <View style={styles.cardBottom}>
-        <View style={styles.detail}>
-          <Text style={styles.caption}>Delivery</Text>
-          <Text style={styles.value}>
-            {formatDate(item.delivery_date)}
-          </Text>
-        </View>
-
-        <View style={styles.detail}>
-          <Text style={styles.caption}>Balance</Text>
-          <Text
-            style={[
-              styles.value,
-              {
-                color: balance > 0 ? colors.warning : colors.success,
-              },
-            ]}
-          >
-            {money(balance)}
-          </Text>
-        </View>
-
-        <View style={styles.cardFlags}>
-          {item.is_washed && (
-            <View style={styles.miniFlag}>
-              <Droplets size={12} color={colors.success} />
-            </View>
-          )}
-
-          {item.is_delivered && (
-            <View style={styles.miniFlag}>
-              <Truck size={12} color={colors.success} />
-            </View>
-          )}
-
-          {isPaid && (
-            <View style={styles.miniFlag}>
-              <Check size={12} color={colors.success} />
-            </View>
-          )}
-        </View>
-      </View>
-    </View>
-  </Pressable>
-);
-
-  }
+    </Pressable>
+  );
+}
 
   const selectedItem = selectedOrder?.items?.[0];
   const selectedPhoto = selectedItem?.photo_signed_url;
@@ -878,27 +837,108 @@ function createStyles(colors: AppColors) {
     },
 
     card: {
-        backgroundColor: colors.surface,
-        borderRadius: 0,
-        borderWidth: 0,
-        padding: 0,
-        overflow: "hidden",
+      backgroundColor: colors.surface,
+      borderRadius: 28,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 10,
+      marginBottom: 14,
     },
 
     cardPressed: {
-      opacity: 0.8,
+      opacity: 0.9,
     },
 
-    photoPlaceholder: {
-  width: "100%",
-  height: 190,
-  backgroundColor: colors.iconBackground,
-  alignItems: "center",
-  justifyContent: "center",
-},
+     photoPlaceholder: {
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
 cardBody: {
   padding: 15,
 },
+
+cardContent: {
+      paddingHorizontal: 8,
+      paddingTop: 16,
+      paddingBottom: 8,
+    },
+
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+
+    clientName: {
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: "700",
+      flexShrink: 1,
+    },
+
+    description: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+      marginTop: 6,
+    },
+
+    cardFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: 16,
+    },
+
+    stats: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      flexShrink: 1,
+    },
+
+    stat: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+    },
+
+    statText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+
+    pillButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      height: 42,
+      paddingHorizontal: 16,
+      borderRadius: 999,
+      backgroundColor: colors.iconBackground,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+
+    pillButtonText: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+
+ cardImageWrap: {
+      borderRadius: 20,
+      overflow: "hidden",
+    },
+
+     cardImage: {
+      width: "100%",
+      height: 260,
+      borderRadius: 20,
+      backgroundColor: colors.iconBackground,
+    },
 
     cardTop: {
       flexDirection: "row",
@@ -925,12 +965,6 @@ cardBody: {
     clientInfo: {
       flex: 1,
       gap: 4,
-    },
-
-    clientName: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: "800",
     },
 
     phone: {
