@@ -1,73 +1,135 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useMemo } from "react";
+
+import { useAuth } from "@/features/auth/hooks/useAuth";
 
 import { saveLaundryOrder } from "@/services/laundryOrderService";
 import {
-    createClient,
-    getClients,
-    type Client,
+  createClient,
+  getClients,
+  type Client,
 } from "@/services/orderService";
+
 import { useOrderDraftStore } from "@/stores/orderDraftStore";
+
 import {
-    calculateOrderTotal,
-    dateInputToISO,
-    isValidDateInput,
-    toLocalDateInput,
+  calculateOrderTotal,
+  dateInputToISO,
+  isValidDateInput,
+  toLocalDateInput,
 } from "@/utils/orderUtils";
 
 export function useNewOrder() {
   const queryClient = useQueryClient();
 
+  const { businessId, loading: authLoading } = useAuth();
+
   const draft = useOrderDraftStore();
 
+  // Load clients belonging to the active business.
   const clientsQuery = useQuery({
-    queryKey: ["clients"],
-    queryFn: getClients,
+    queryKey: ["clients", businessId],
+
+    queryFn: () => {
+      if (!businessId) {
+        throw new Error("No active business was found.");
+      }
+
+      return getClients(businessId);
+    },
+
+    enabled: !authLoading && !!businessId,
   });
 
   const clients = clientsQuery.data ?? [];
 
   const selectedClient = useMemo(
-    () => clients.find((client) => client.id === draft.clientId) ?? null,
+    () =>
+      clients.find((client) => client.id === draft.clientId) ?? null,
     [clients, draft.clientId]
   );
 
+  // Create a client inside the active business.
   const createClientMutation = useMutation({
-    mutationFn: createClient,
+    mutationFn: (input: { name: string; phone: string }) => {
+      if (!businessId) {
+        throw new Error("No active business was found.");
+      }
+
+      return createClient(businessId, input);
+    },
+
     onSuccess: async (client: Client) => {
       await queryClient.invalidateQueries({
-        queryKey: ["clients"],
+        queryKey: ["clients", businessId],
       });
 
       draft.setClient(client.id);
     },
   });
 
+  // Create a laundry order inside the active business.
   const createOrderMutation = useMutation({
-    mutationFn: () =>
-      saveLaundryOrder({
-        client_id: draft.clientId!,
-        pickup_date: dateInputToISO(toLocalDateInput(draft.pickupDate)),
-        delivery_date: dateInputToISO(toLocalDateInput(draft.deliveryDate)),
-        weight_kg: Number(draft.weightKg.replace(",", ".")),
+    mutationFn: () => {
+      if (!businessId) {
+        throw new Error("No active business was found.");
+      }
+
+      if (!draft.clientId) {
+        throw new Error("Please select a client.");
+      }
+
+      return saveLaundryOrder(businessId, {
+        client_id: draft.clientId,
+
+        pickup_date: dateInputToISO(
+          toLocalDateInput(draft.pickupDate)
+        ),
+
+        delivery_date: dateInputToISO(
+          toLocalDateInput(draft.deliveryDate)
+        ),
+
+        weight_kg: Number(
+          draft.weightKg.replace(",", ".")
+        ),
+
         pack: draft.pack,
+
         custom_price:
           draft.pack === "custom"
             ? Number(draft.customPrice.replace(",", "."))
             : null,
+
         photo_uri: draft.photoUri,
-      }),
+      });
+    },
 
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["orders"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["orders", businessId],
+        }),
+
+        queryClient.invalidateQueries({
+          queryKey: ["dashboard", businessId],
+        }),
       ]);
     },
   });
 
-  const weight = Number(draft.weightKg.replace(",", "."));
-  const customPrice = Number(draft.customPrice.replace(",", "."));
+  const weight = Number(
+    draft.weightKg.replace(",", ".")
+  );
+
+  const customPrice = Number(
+    draft.customPrice.replace(",", ".")
+  );
 
   const total = calculateOrderTotal(
     Number.isFinite(weight) ? weight : 0,
@@ -76,6 +138,10 @@ export function useNewOrder() {
   );
 
   function validate(): string | null {
+    if (!businessId || authLoading) {
+      return "Your business workspace is still loading.";
+    }
+
     if (!draft.clientId) {
       return "Please select a client.";
     }
@@ -95,15 +161,21 @@ export function useNewOrder() {
       return "The delivery date cannot be earlier than the pickup date.";
     }
 
-    if (!draft.weightKg.trim() || !Number.isFinite(weight) || weight <= 0) {
+    if (
+      !draft.weightKg.trim() ||
+      !Number.isFinite(weight) ||
+      weight <= 0
+    ) {
       return "Please enter a valid laundry weight.";
     }
 
     if (
       draft.pack === "custom" &&
-      (!draft.customPrice.trim() ||
+      (
+        !draft.customPrice.trim() ||
         !Number.isFinite(customPrice) ||
-        customPrice <= 0)
+        customPrice <= 0
+      )
     ) {
       return "Please enter a valid custom price.";
     }
@@ -125,13 +197,16 @@ export function useNewOrder() {
     clients,
     selectedClient,
 
-    isLoadingClients: clientsQuery.isLoading,
+    isLoadingClients:
+      authLoading || clientsQuery.isLoading,
+
     clientsError: clientsQuery.error,
 
     createClient: createClientMutation.mutateAsync,
     isCreatingClient: createClientMutation.isPending,
 
     total,
+
     submit,
     validate,
 

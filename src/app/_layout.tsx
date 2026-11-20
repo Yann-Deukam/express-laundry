@@ -10,8 +10,9 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 
 
 import { SplashScreen } from "@/components/auth/SplashScreen";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { AuthProvider } from "@/providers/AuthProvider";
 import { queryClient } from "../lib/queryClient";
-import { AuthProvider, useAuth } from "../providers/AuthProvider";
 import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
 
 const persister = createAsyncStoragePersister({

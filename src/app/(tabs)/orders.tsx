@@ -2,41 +2,41 @@
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import {
-    BadgeCheck,
-    CalendarDays,
-    Check,
-    CreditCard,
-    Droplets,
-    Plus,
-    Share2,
-    Shirt,
-    Truck,
-    Weight,
-    X
+  BadgeCheck,
+  CalendarDays,
+  Check,
+  CreditCard,
+  Droplets,
+  Plus,
+  Share2,
+  Shirt,
+  Truck,
+  Weight,
+  X
 } from "lucide-react-native";
 import type { ComponentRef } from "react";
 import { useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 
 import type { AppColors } from "@/constants/colors";
 import {
-    useOrders,
-    useUpdateOrderDelivery,
-    useUpdateOrderPayment,
-    useUpdateOrderWashed,
+  useOrders,
+  useUpdateOrderDelivery,
+  useUpdateOrderPayment,
+  useUpdateOrderWashed,
 } from "@/hooks/useOrders";
 import { useTheme } from "@/providers/ThemeProvider";
 import type { Order } from "@/services/orderService";
@@ -121,6 +121,7 @@ export default function OrdersScreen() {
   const closeOrder = () => {
     setDetailsVisible(false);
   };
+
 
   async function handleDeliveryToggle() {
     if (!selectedOrder) return;

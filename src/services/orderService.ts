@@ -1,6 +1,5 @@
 
 import { supabase } from "@/utils/supabase";
-import { File } from "expo-file-system";
 
 export const ORDER_STATUSES = [
   "received",
@@ -58,13 +57,6 @@ export interface CreateOrderInput {
   delivery_date: string;
 }
 
-export interface SaveLaundryOrderInput extends CreateOrderInput {
-  weight_kg: number;
-  pack: PricingPack;
-  custom_price?: number | null;
-  photo_uri?: string | null;
-}
-
 const ORDER_SELECT = `
   id,
   client_id,
@@ -76,11 +68,11 @@ const ORDER_SELECT = `
   is_delivered,
   is_washed,
   created_at,
-  clients (
+  clients!orders_client_business_fkey (
     name,
     phone
   ),
-  items (
+  items!items_order_business_fkey (
     id,
     dress_type,
     pack,
@@ -91,99 +83,6 @@ const ORDER_SELECT = `
   )
 `;
 
-function calculateLaundryPrice(
-  weightKg: number,
-  pack: PricingPack,
-  customPrice?: number | null
-) {
-  if (pack === "per_kg_500") {
-    return {
-      unitPrice: 500,
-      total: Math.round(weightKg * 500 * 100) / 100,
-    };
-  }
-
-  if (pack === "per_kg_1000") {
-    return {
-      unitPrice: 1000,
-      total: Math.round(weightKg * 1000 * 100) / 100,
-    };
-  }
-
-  const total = Number(customPrice);
-
-  if (!Number.isFinite(total) || total <= 0) {
-    throw new Error("Please enter a valid custom price.");
-  }
-
-  return {
-    unitPrice: total,
-    total: Math.round(total * 100) / 100,
-  };
-}
-
-function getPhotoExtension(uri: string) {
-  const cleanUri = uri.split("?")[0];
-  const extension = cleanUri.split(".").pop()?.toLowerCase();
-
-  if (extension === "png") return "png";
-  if (extension === "webp") return "webp";
-
-  return "jpg";
-}
-
-async function uploadLaundryPhoto(
-  uri: string,
-  userId: string,
-  orderId: string
-): Promise<string> {
-  const extension = getPhotoExtension(uri);
-
-  const contentType =
-    extension === "png"
-      ? "image/png"
-      : extension === "webp"
-        ? "image/webp"
-        : "image/jpeg";
-
-  const path = `${userId}/${orderId}/laundry.${extension}`;
-
-  try {
-    const file = new File(uri);
-
-    if (!file.exists) {
-      throw new Error("The weighing photo does not exist on the device.");
-    }
-
-    const bytes = await file.bytes();
-
-    if (bytes.length === 0) {
-      throw new Error("The weighing photo is empty.");
-    }
-
-    const { error } = await supabase.storage
-      .from("items-photos")
-      .upload(path, bytes, {
-        contentType,
-        upsert: true,
-      });
-
-    if (error) {
-      console.error("SUPABASE STORAGE ERROR:", error);
-      throw new Error(`Photo upload failed: ${error.message}`);
-    }
-
-    return path;
-  } catch (error) {
-    console.error("WEIGHING PHOTO UPLOAD ERROR:", error);
-    throw error;
-  }
-}
-
-/**
- * Converts the private Storage path into a temporary URL
- * that React Native Image can display.
- */
 async function attachSignedPhotoUrls(
   orders: Order[]
 ): Promise<Order[]> {
@@ -230,12 +129,14 @@ async function attachSignedPhotoUrls(
 }
 
 async function getEnrichedOrder(
-  id: string
+  businessId: string,
+  orderId: string
 ): Promise<Order> {
   const { data, error } = await supabase
     .from("orders")
     .select(ORDER_SELECT)
-    .eq("id", id)
+    .eq("id", orderId)
+    .eq("business_id", businessId)
     .single();
 
   if (error) throw error;
@@ -247,10 +148,18 @@ async function getEnrichedOrder(
   return order;
 }
 
-export async function getClients(): Promise<Client[]> {
+
+export async function getClients(
+  businessId: string
+): Promise<Client[]> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
   const { data, error } = await supabase
     .from("clients")
     .select("id, name, phone, notes")
+    .eq("business_id", businessId)
     .order("name", { ascending: true });
 
   if (error) throw error;
@@ -258,20 +167,35 @@ export async function getClients(): Promise<Client[]> {
   return (data ?? []) as Client[];
 }
 
-export async function createClient(input: {
-  name: string;
-  phone: string;
-}): Promise<Client> {
+
+
+export async function createClient(
+  businessId: string,
+  input: {
+    name: string;
+    phone: string;
+  }
+): Promise<Client> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
   const name = input.name.trim();
   const phone = input.phone.trim();
 
   if (!name || !phone) {
-    throw new Error("Please enter the client's name and phone number.");
+    throw new Error(
+      "Please enter the client's name and phone number."
+    );
   }
 
   const { data, error } = await supabase
     .from("clients")
-    .insert({ name, phone })
+    .insert({
+      business_id: businessId,
+      name,
+      phone,
+    })
     .select("id, name, phone, notes")
     .single();
 
@@ -280,27 +204,51 @@ export async function createClient(input: {
   return data as Client;
 }
 
-export async function getOrders(): Promise<Order[]> {
+
+export async function getOrders(
+  businessId: string
+): Promise<Order[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(ORDER_SELECT)
+    .eq("business_id", businessId)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    console.error("GET ORDERS ERROR:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
 
-  return attachSignedPhotoUrls((data ?? []) as unknown as Order[]);
+    throw error;
+  }
+
+  return attachSignedPhotoUrls(
+    (data ?? []) as unknown as Order[]
+  );
 }
 
-export async function getOrder(id: string): Promise<Order> {
-  return getEnrichedOrder(id);
+export async function getOrder(
+  id: string,
+  businessId: string
+): Promise<Order> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
+  return getEnrichedOrder(businessId, id);
 }
 
 export async function createOrder(
+  businessId: string,
   input: CreateOrderInput
 ): Promise<Order> {
   const { data, error } = await supabase
     .from("orders")
     .insert({
+      business_id: businessId,
       client_id: input.client_id,
       pickup_date: input.pickup_date,
       delivery_date: input.delivery_date,
@@ -315,157 +263,28 @@ export async function createOrder(
 
   if (error) throw error;
 
-  return getOrder(data.id);
+ return getOrder(data.id, businessId);
 }
 
-/**
- * Saves one laundry order.
- *
- * The existing items table is retained for database compatibility,
- * but only one generic laundry row is created per order.
- */
-export async function saveLaundryOrder(
-  input: SaveLaundryOrderInput
-): Promise<Order> {
-  if (!input.client_id) {
-    throw new Error("Please select a client.");
-  }
-
-  if (!Number.isFinite(input.weight_kg) || input.weight_kg <= 0) {
-    throw new Error("Please enter a valid laundry weight.");
-  }
-
-  const { data: authData, error: authError } =
-    await supabase.auth.getUser();
-
-  if (authError) throw authError;
-
-  const user = authData.user;
-
-  if (!user) {
-    throw new Error("You must be signed in to create an order.");
-  }
-
-  const { unitPrice, total } = calculateLaundryPrice(
-    input.weight_kg,
-    input.pack,
-    input.custom_price
-  );
-
-  let orderId: string | null = null;
-  let uploadedPhotoPath: string | null = null;
-
-  try {
-    const order = await createOrder({
-      client_id: input.client_id,
-      pickup_date: input.pickup_date,
-      delivery_date: input.delivery_date,
-    });
-
-    orderId = order.id;
-
-    const { data: savedItem, error: itemError } = await supabase
-      .from("items")
-      .insert({
-        order_id: order.id,
-        dress_type: "Laundry",
-        pack: input.pack,
-        weight_kg: input.weight_kg,
-        unit_price: unitPrice,
-        price: total,
-        photo_url: null,
-      })
-      .select("id")
-      .single();
-
-    if (itemError) throw itemError;
-
-    if (input.photo_uri) {
-      uploadedPhotoPath = await uploadLaundryPhoto(
-        input.photo_uri,
-        user.id,
-        order.id
-      );
-
-      const { error: photoError } = await supabase
-        .from("items")
-        .update({ photo_url: uploadedPhotoPath })
-        .eq("id", savedItem.id);
-
-      if (photoError) throw photoError;
-    }
-
-    const { error: totalError } = await supabase
-      .from("orders")
-      .update({ total })
-      .eq("id", order.id);
-
-    if (totalError) throw totalError;
-
-    const { data: client, error: clientError } = await supabase
-      .from("clients")
-      .select("id, name, phone")
-      .eq("id", input.client_id)
-      .single();
-
-    if (clientError) throw clientError;
-
-    const snapshot = {
-      order_id: order.id,
-      client,
-      pickup_date: input.pickup_date,
-      delivery_date: input.delivery_date,
-      weight_kg: input.weight_kg,
-      pack: input.pack,
-      unit_price: unitPrice,
-      photo_url: uploadedPhotoPath,
-      total,
-      currency: "XAF",
-      generated_at: new Date().toISOString(),
-    };
-
-    const { error: receiptError } = await supabase
-      .from("receipt_versions")
-      .insert({
-        order_id: order.id,
-        version: 1,
-        snapshot,
-        status: "draft",
-      });
-
-    if (receiptError) throw receiptError;
-
-    return await getOrder(order.id);
-  } catch (error) {
-    if (uploadedPhotoPath) {
-      await supabase.storage
-        .from("items-photos")
-        .remove([uploadedPhotoPath]);
-    }
-
-    if (orderId) {
-      await supabase
-        .from("orders")
-        .delete()
-        .eq("id", orderId);
-    }
-
-    throw error;
-  }
-}
 
 export async function updateOrderStatus(
   id: string,
-  status: OrderStatus
+  status: OrderStatus,
+  businessId: string
 ): Promise<Order> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
   const { error } = await supabase
     .from("orders")
     .update({ status })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("business_id", businessId);
 
   if (error) throw error;
 
-  return getOrder(id);
+  return getOrder(id, businessId);
 }
 
 /**
@@ -473,16 +292,22 @@ export async function updateOrderStatus(
  */
 export async function updateOrderDelivery(
   id: string,
-  isDelivered: boolean
+  isDelivered: boolean,
+  businessId: string
 ): Promise<Order> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
   const { error } = await supabase
     .from("orders")
     .update({ is_delivered: isDelivered })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("business_id", businessId);
 
   if (error) throw error;
 
-  return getOrder(id);
+  return getOrder(id, businessId);
 }
 
 /**
@@ -490,16 +315,22 @@ export async function updateOrderDelivery(
  */
 export async function updateOrderWashed(
   id: string,
-  isWashed: boolean
+  isWashed: boolean,
+  businessId: string
 ): Promise<Order> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
   const { error } = await supabase
     .from("orders")
     .update({ is_washed: isWashed })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("business_id", businessId);
 
   if (error) throw error;
 
-  return getOrder(id);
+  return getOrder(id, businessId);
 }
 
 /**
@@ -507,8 +338,13 @@ export async function updateOrderWashed(
  */
 export async function updateOrderPayment(
   id: string,
-  amountPaid: number
+  amountPaid: number,
+  businessId: string
 ): Promise<Order> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
   if (!Number.isFinite(amountPaid) || amountPaid < 0) {
     throw new Error("Please enter a valid payment amount.");
   }
@@ -517,6 +353,7 @@ export async function updateOrderPayment(
     .from("orders")
     .select("total")
     .eq("id", id)
+    .eq("business_id", businessId)
     .single();
 
   if (orderError) throw orderError;
@@ -528,12 +365,14 @@ export async function updateOrderPayment(
   const { error } = await supabase
     .from("orders")
     .update({ amount_paid: amountPaid })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("business_id", businessId);
 
   if (error) throw error;
 
-  return getOrder(id);
+  return getOrder(id, businessId);
 }
+
 
 function getLocalDayRange() {
   const now = new Date();
@@ -556,12 +395,16 @@ function getLocalDayRange() {
   };
 }
 
-export async function getOrdersDueSoon(): Promise<Order[]> {
+
+export async function getOrdersDueSoon(
+  businessId: string
+): Promise<Order[]> {
   const { start, end } = getLocalDayRange();
 
   const { data, error } = await supabase
     .from("orders")
     .select(ORDER_SELECT)
+    .eq("business_id", businessId)
     .gte("delivery_date", start)
     .lt("delivery_date", end)
     .eq("is_delivered", false)
@@ -569,13 +412,20 @@ export async function getOrdersDueSoon(): Promise<Order[]> {
 
   if (error) throw error;
 
-  return attachSignedPhotoUrls((data ?? []) as unknown as Order[]);
+  return attachSignedPhotoUrls(
+    (data ?? []) as unknown as Order[]
+  );
 }
 
-export async function getOrdersInProgress(): Promise<Order[]> {
+
+
+export async function getOrdersInProgress(
+  businessId: string
+): Promise<Order[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(ORDER_SELECT)
+    .eq("business_id", businessId)
     .in("status", ["confirmed", "washing", "ironing", "ready"])
     .eq("is_delivered", false)
     .order("updated_at", { ascending: false })
@@ -583,13 +433,20 @@ export async function getOrdersInProgress(): Promise<Order[]> {
 
   if (error) throw error;
 
-  return attachSignedPhotoUrls((data ?? []) as unknown as Order[]);
+  return attachSignedPhotoUrls(
+    (data ?? []) as unknown as Order[]
+  );
 }
 
-export async function getUnpaidOrders(): Promise<Order[]> {
+
+
+export async function getUnpaidOrders(
+  businessId: string
+): Promise<Order[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(ORDER_SELECT)
+    .eq("business_id", businessId)
     .gt("total", 0)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -604,3 +461,4 @@ export async function getUnpaidOrders(): Promise<Order[]> {
     (order) => Number(order.amount_paid) < Number(order.total)
   );
 }
+

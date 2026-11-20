@@ -1,6 +1,13 @@
-import type { PricingPack } from "@/stores/orderDraftStore";
-import { supabase } from "@/utils/supabase";
+
 import { File } from "expo-file-system";
+
+import {
+  getOrder,
+  type Order,
+  type PricingPack,
+} from "@/services/orderService";
+
+import { supabase } from "@/utils/supabase";
 
 export interface SaveLaundryOrderInput {
   client_id: string;
@@ -12,35 +19,38 @@ export interface SaveLaundryOrderInput {
   photo_uri?: string | null;
 }
 
-export interface SavedLaundryOrder {
-  id: string;
-  client_id: string;
-  status: string;
-  pickup_date: string;
-  delivery_date: string;
-  total: number;
-  amount_paid: number;
-  is_delivered: boolean;
-  created_at: string;
-  clients: {
-    name: string;
-    phone: string;
-  } | null;
-}
-
-function calculateTotal(input: SaveLaundryOrderInput): number {
-  if (input.pack === "per_kg_500") {
-    return Math.round(input.weight_kg * 500 * 100) / 100;
+function calculateTotal(
+  weightKg: number,
+  pack: PricingPack,
+  customPrice?: number | null
+) {
+  if (pack === "per_kg_500") {
+    return {
+      unitPrice: 500,
+      total: Math.round(weightKg * 500 * 100) / 100,
+    };
   }
 
-  if (input.pack === "per_kg_1000") {
-    return Math.round(input.weight_kg * 1000 * 100) / 100;
+  if (pack === "per_kg_1000") {
+    return {
+      unitPrice: 1000,
+      total: Math.round(weightKg * 1000 * 100) / 100,
+    };
   }
 
-  return Math.round(Number(input.custom_price ?? 0) * 100) / 100;
+  const total = Number(customPrice);
+
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error("Please enter a valid custom price.");
+  }
+
+  return {
+    unitPrice: total,
+    total: Math.round(total * 100) / 100,
+  };
 }
 
-function getPhotoExtension(uri: string): string {
+function getPhotoExtension(uri: string) {
   const cleanUri = uri.split("?")[0];
   const extension = cleanUri.split(".").pop()?.toLowerCase();
 
@@ -50,10 +60,9 @@ function getPhotoExtension(uri: string): string {
   return "jpg";
 }
 
-
 async function uploadWeighingPhoto(
   uri: string,
-  userId: string,
+  businessId: string,
   orderId: string
 ): Promise<string> {
   const extension = getPhotoExtension(uri);
@@ -65,21 +74,15 @@ async function uploadWeighingPhoto(
         ? "image/webp"
         : "image/jpeg";
 
-  const path = `${userId}/${orderId}/weighing.${extension}`;
-
-  console.log("WEIGHING PHOTO URI:", uri);
+  const path = `${businessId}/${orderId}/weighing.${extension}`;
 
   const file = new File(uri);
-
-  console.log("PHOTO FILE EXISTS:", file.exists);
 
   if (!file.exists) {
     throw new Error("The weighing photo does not exist on the device.");
   }
 
   const bytes = await file.bytes();
-
-  console.log("PHOTO BYTE SIZE:", bytes.length);
 
   if (bytes.length === 0) {
     throw new Error("The weighing photo is empty.");
@@ -93,29 +96,26 @@ async function uploadWeighingPhoto(
     });
 
   if (error) {
-    console.error("SUPABASE STORAGE ERROR:", error);
     throw new Error(`Photo upload failed: ${error.message}`);
   }
-
-  console.log("WEIGHING PHOTO UPLOADED:", path);
 
   return path;
 }
 
-
 export async function saveLaundryOrder(
+  businessId: string,
   input: SaveLaundryOrderInput
-): Promise<SavedLaundryOrder> {
+): Promise<Order> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
   if (!input.client_id) {
     throw new Error("Please select a client.");
   }
 
   if (!Number.isFinite(input.weight_kg) || input.weight_kg <= 0) {
-    throw new Error("Enter a valid laundry weight.");
-  }
-
-  if (input.pack === "custom" && (!input.custom_price || input.custom_price <= 0)) {
-    throw new Error("Enter a valid custom price.");
+    throw new Error("Please enter a valid laundry weight.");
   }
 
   const { data: authData, error: authError } =
@@ -129,23 +129,29 @@ export async function saveLaundryOrder(
     throw new Error("You must be signed in to create an order.");
   }
 
-  const total = calculateTotal(input);
+  const { unitPrice, total } = calculateTotal(
+    input.weight_kg,
+    input.pack,
+    input.custom_price
+  );
 
   let orderId: string | null = null;
-  let photoPath: string | null = null;
+  let uploadedPhotoPath: string | null = null;
 
   try {
-    // Create the order with its final total.
+    // Create the order under the active business.
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
+        business_id: businessId,
         client_id: input.client_id,
         pickup_date: input.pickup_date,
         delivery_date: input.delivery_date,
         status: "received",
-        total,
+        total: 0,
         amount_paid: 0,
         is_delivered: false,
+        is_washed: false,
       })
       .select("id")
       .single();
@@ -154,64 +160,82 @@ export async function saveLaundryOrder(
 
     orderId = order.id;
 
-    // Upload the weighing photo, if one was taken.
-    if (input.photo_uri) {
-      photoPath = await uploadWeighingPhoto(
-        input.photo_uri,
-        user.id,
-        order.id
-      );
-    }
-
-    const unitPrice =
-      input.pack === "per_kg_500"
-        ? 500
-        : input.pack === "per_kg_1000"
-          ? 1000
-          : Number(input.custom_price);
-
-    // One order has one summary record, not multiple garment records.
-    const { data: item, error: itemError } = await supabase
+    // Create the laundry item under the same business.
+    const { data: savedItem, error: itemError } = await supabase
       .from("items")
       .insert({
+        business_id: businessId,
         order_id: order.id,
         dress_type: "Laundry",
         pack: input.pack,
         weight_kg: input.weight_kg,
         unit_price: unitPrice,
         price: total,
-        photo_url: photoPath,
+        photo_url: null,
       })
-      .select("id, dress_type, pack, weight_kg, unit_price, price, photo_url")
+      .select("id")
       .single();
 
     if (itemError) throw itemError;
 
+    // Upload a new photo using the business-first Storage path.
+    if (input.photo_uri) {
+      uploadedPhotoPath = await uploadWeighingPhoto(
+        input.photo_uri,
+        businessId,
+        order.id
+      );
+
+      const { error: photoError } = await supabase
+        .from("items")
+        .update({
+          photo_url: uploadedPhotoPath,
+        })
+        .eq("id", savedItem.id)
+        .eq("business_id", businessId);
+
+      if (photoError) throw photoError;
+    }
+
+    // Update the order total.
+    const { error: totalError } = await supabase
+      .from("orders")
+      .update({ total })
+      .eq("id", order.id)
+      .eq("business_id", businessId);
+
+    if (totalError) throw totalError;
+
+    // Fetch the client for the receipt snapshot.
     const { data: client, error: clientError } = await supabase
       .from("clients")
       .select("id, name, phone")
       .eq("id", input.client_id)
+      .eq("business_id", businessId)
       .single();
 
     if (clientError) throw clientError;
 
     const snapshot = {
       order_id: order.id,
+      business_id: businessId,
       client,
       pickup_date: input.pickup_date,
       delivery_date: input.delivery_date,
       weight_kg: input.weight_kg,
-      pricing_pack: input.pack,
-      custom_price: input.custom_price ?? null,
-      item,
+      pack: input.pack,
+      unit_price: unitPrice,
+      photo_url: uploadedPhotoPath,
       total,
       currency: "XAF",
       generated_at: new Date().toISOString(),
     };
 
+    // Save the receipt version under the same business.
     const { error: receiptError } = await supabase
       .from("receipt_versions")
       .insert({
+        business_id: businessId,
         order_id: order.id,
         version: 1,
         snapshot,
@@ -220,34 +244,24 @@ export async function saveLaundryOrder(
 
     if (receiptError) throw receiptError;
 
-    const { data: savedOrder, error: fetchError } = await supabase
-      .from("orders")
-      .select(`
-        id,
-        client_id,
-        status,
-        pickup_date,
-        delivery_date,
-        total,
-        amount_paid,
-        is_delivered,
-        created_at,
-        clients (name, phone)
-      `)
-      .eq("id", order.id)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    return savedOrder as unknown as SavedLaundryOrder;
+    return await getOrder(order.id, businessId);
   } catch (error) {
-    // Clean up uploaded storage data and the order if saving fails.
-    if (photoPath) {
-      await supabase.storage.from("items-photos").remove([photoPath]);
+    // Remove only the photo uploaded during this failed operation.
+    if (uploadedPhotoPath) {
+      await supabase.storage
+        .from("items-photos")
+        .remove([uploadedPhotoPath]);
     }
 
+    // Delete only the order created during this failed operation.
+    // Related rows are expected to be removed through the existing
+    // database foreign-key cascade.
     if (orderId) {
-      await supabase.from("orders").delete().eq("id", orderId);
+      await supabase
+        .from("orders")
+        .delete()
+        .eq("id", orderId)
+        .eq("business_id", businessId);
     }
 
     throw error;
