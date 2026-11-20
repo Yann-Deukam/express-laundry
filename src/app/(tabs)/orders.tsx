@@ -12,9 +12,9 @@ import {
   Shirt,
   Truck,
   Weight,
-  X
+  X,
 } from "lucide-react-native";
-import type { ComponentRef } from "react";
+import type { ComponentRef, ReactNode } from "react";
 import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,12 +24,13 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
+
+
 
 import type { AppColors } from "@/constants/colors";
 import {
@@ -40,6 +41,7 @@ import {
 } from "@/hooks/useOrders";
 import { useTheme } from "@/providers/ThemeProvider";
 import type { Order } from "@/services/orderService";
+import { createStyles, OrdersStyles } from "@/styles/order.styles";
 
 function money(value: number) {
   return `${Number(value || 0).toLocaleString("fr-FR")} FCFA`;
@@ -57,34 +59,6 @@ function formatDate(value: string) {
     month: "short",
     year: "numeric",
   });
-}
-
-function getStatusColor(status: string, colors: AppColors) {
-  const statusColors: Record<string, string> = {
-    received: colors.statusReceived,
-    awaiting_validation: colors.statusAwaitingValidation,
-    confirmed: colors.statusConfirmed,
-    washing: colors.statusWashing,
-    ironing: colors.statusIroning,
-    ready: colors.statusReady,
-    delivered: colors.statusDelivered,
-  };
-
-  return statusColors[status] ?? colors.textSecondary;
-}
-
-function getStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    received: "Received",
-    awaiting_validation: "Awaiting approval",
-    confirmed: "Confirmed",
-    washing: "Washing",
-    ironing: "Ironing",
-    ready: "Ready",
-    delivered: "Delivered",
-  };
-
-  return labels[status] ?? status.replaceAll("_", " ");
 }
 
 function getPricingLabel(pack?: string) {
@@ -113,6 +87,25 @@ export default function OrdersScreen() {
   const washedMutation = useUpdateOrderWashed();
   const paymentMutation = useUpdateOrderPayment();
 
+  const orderNotices = (selectedOrder?.items ?? [])
+    .flatMap((item) => item.item_notes ?? [])
+    .map((itemNote) => itemNote.note);
+
+  const selectedItem = selectedOrder?.items?.[0];
+  const selectedPhoto = selectedItem?.photo_signed_url;
+
+  const selectedBalance = selectedOrder
+    ? Math.max(
+        Number(selectedOrder.total) - Number(selectedOrder.amount_paid),
+        0
+      )
+    : 0;
+
+  const selectedIsPaid = selectedOrder
+    ? Number(selectedOrder.total) > 0 &&
+      Number(selectedOrder.amount_paid) >= Number(selectedOrder.total)
+    : false;
+
   const openOrder = (order: Order) => {
     setSelectedOrder(order);
     setDetailsVisible(true);
@@ -121,7 +114,6 @@ export default function OrdersScreen() {
   const closeOrder = () => {
     setDetailsVisible(false);
   };
-
 
   async function handleDeliveryToggle() {
     if (!selectedOrder) return;
@@ -227,96 +219,86 @@ export default function OrdersScreen() {
   }
 
   function renderOrder({ item }: { item: Order }) {
-  const total = Number(item.total) || 0;
-  const paid = Number(item.amount_paid) || 0;
-  const balance = Math.max(total - paid, 0);
-  const isPaid = total > 0 && paid >= total;
+    const total = Number(item.total) || 0;
+    const paid = Number(item.amount_paid) || 0;
+    const balance = Math.max(total - paid, 0);
+    const isPaid = total > 0 && paid >= total;
 
-  const photo = item.items?.[0]?.photo_signed_url;
-  const firstItem = item.items?.[0];
-  const itemCount = item.items?.length ?? 0;
-  const weight =
-    firstItem?.weight_kg != null ? `${Number(firstItem.weight_kg)} kg` : "No weight";
+    const photo = item.items?.[0]?.photo_signed_url;
+    const firstItem = item.items?.[0];
+    const itemCount = item.items?.length ?? 0;
 
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={() => openOrder(item)}
-    >
-      <View style={styles.cardImageWrap}>
-        {photo ? (
-          <Image
-            source={{ uri: photo }}
-            style={styles.cardImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.cardImage, styles.photoPlaceholder]}>
-            <Shirt color={colors.primary} size={32} />
-          </View>
-        )}
-      </View>
+    const weight =
+      firstItem?.weight_kg != null
+        ? `${Number(firstItem.weight_kg)} kg`
+        : "No weight";
 
-      <View style={styles.cardContent}>
-        <View style={styles.nameRow}>
-          <Text style={styles.clientName} numberOfLines={1}>
-            {item.clients?.name ?? "Unknown client"}
-          </Text>
-
-          {isPaid && (
-            <BadgeCheck size={18} color={colors.success} />
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.card,
+          pressed && styles.cardPressed,
+        ]}
+        onPress={() => openOrder(item)}
+      >
+        <View style={styles.cardImageWrap}>
+          {photo ? (
+            <Image
+              source={{ uri: photo }}
+              style={styles.cardImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.cardImage, styles.photoPlaceholder]}>
+              <Shirt color={colors.primary} size={32} />
+            </View>
           )}
         </View>
 
-        <Text style={styles.description} numberOfLines={2}>
-          {getPricingLabel(firstItem?.pack)} · {getStatusLabel(item.status)}
-          {balance > 0 ? ` · ${money(balance)} due` : ""}
-        </Text>
+        <View style={styles.cardContent}>
+          <View style={styles.nameRow}>
+            <Text style={styles.clientName} numberOfLines={1}>
+              {item.clients?.name ?? "Unknown client"}
+            </Text>
 
-        <View style={styles.cardFooter}>
-          <View style={styles.stats}>
-            <View style={styles.stat}>
-              <Weight size={15} color={colors.textSecondary} />
-              <Text style={styles.statText}>{weight}</Text>
-            </View>
-
-            <View style={styles.stat}>
-              <Shirt size={15} color={colors.textSecondary} />
-              <Text style={styles.statText}>{itemCount}</Text>
-            </View>
-
-            <View style={styles.stat}>
-              <Truck size={15} color={colors.textSecondary} />
-              <Text style={styles.statText}>
-                {formatDate(item.delivery_date)}
-              </Text>
-            </View>
+            {isPaid && (
+              <BadgeCheck size={18} color={colors.success} />
+            )}
           </View>
 
-          <View style={styles.pillButton}>
-            {/* <Text style={styles.pillButtonText}>Details</Text> */}
-            <Plus size={16} color={colors.text} />
+          <Text style={styles.description} numberOfLines={2}>
+            {getPricingLabel(firstItem?.pack)} · {item.status.replaceAll("_", " ")}
+            {balance > 0 ? ` · ${money(balance)} due` : ""}
+          </Text>
+
+          <View style={styles.cardFooter}>
+            <View style={styles.stats}>
+              <View style={styles.stat}>
+                <Weight size={15} color={colors.textSecondary} />
+                <Text style={styles.statText}>{weight}</Text>
+              </View>
+
+              <View style={styles.stat}>
+                <Shirt size={15} color={colors.textSecondary} />
+                <Text style={styles.statText}>{itemCount}</Text>
+              </View>
+
+              <View style={styles.stat}>
+                <Truck size={15} color={colors.textSecondary} />
+                <Text style={styles.statText}>
+                  {formatDate(item.delivery_date)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.pillButton}>
+              <Plus size={16} color={colors.text} />
+            </View>
           </View>
         </View>
-      </View>
-    </Pressable>
-  );
-}
-
-  const selectedItem = selectedOrder?.items?.[0];
-  const selectedPhoto = selectedItem?.photo_signed_url;
-
-  const selectedBalance = selectedOrder
-    ? Math.max(
-        Number(selectedOrder.total) - Number(selectedOrder.amount_paid),
-        0
-      )
-    : 0;
-
-  const selectedIsPaid = selectedOrder
-    ? Number(selectedOrder.total) > 0 &&
-      Number(selectedOrder.amount_paid) >= Number(selectedOrder.total)
-    : false;
+      </Pressable>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -338,10 +320,7 @@ export default function OrdersScreen() {
       </View>
 
       {isLoading ? (
-        <ActivityIndicator
-          color={colors.primary}
-          style={styles.loader}
-        />
+        <ActivityIndicator color={colors.primary} style={styles.loader} />
       ) : isError ? (
         <Pressable
           style={styles.empty}
@@ -490,7 +469,9 @@ export default function OrdersScreen() {
                   <View style={styles.amountDivider} />
 
                   <View style={styles.amountRow}>
-                    <Text style={styles.balanceLabel}>Remaining balance</Text>
+                    <Text style={styles.balanceLabel}>
+                      Remaining balance
+                    </Text>
                     <Text
                       style={[
                         styles.balanceValue,
@@ -507,6 +488,25 @@ export default function OrdersScreen() {
                   </View>
                 </View>
 
+                {/* SPECIAL INSTRUCTIONS */}
+                <View style={styles.specialInstructions}>
+                  <Text style={styles.sectionTitle}>
+                    Special instructions
+                  </Text>
+
+                  {orderNotices.length > 0 ? (
+                    orderNotices.map((notice, index) => (
+                      <Text key={`${index}-${notice}`} style={styles.noticeText}>
+                        {notice}
+                      </Text>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyNotice}>
+                      No special instructions were added to this order.
+                    </Text>
+                  )}
+                </View>
+
                 <View style={styles.sectionDivider} />
 
                 <Text style={styles.sectionTitle}>Order checklist</Text>
@@ -517,7 +517,16 @@ export default function OrdersScreen() {
 
                 <View style={styles.actions}>
                   <StatusAction
-                    icon={<Droplets size={19} color={selectedOrder.is_washed ? colors.success : colors.textSecondary} />}
+                    icon={
+                      <Droplets
+                        size={19}
+                        color={
+                          selectedOrder.is_washed
+                            ? colors.success
+                            : colors.textSecondary
+                        }
+                      />
+                    }
                     title="Washed"
                     description="Laundry has been washed"
                     active={selectedOrder.is_washed}
@@ -528,7 +537,16 @@ export default function OrdersScreen() {
                   />
 
                   <StatusAction
-                    icon={<Truck size={19} color={selectedOrder.is_delivered ? colors.success : colors.textSecondary} />}
+                    icon={
+                      <Truck
+                        size={19}
+                        color={
+                          selectedOrder.is_delivered
+                            ? colors.success
+                            : colors.textSecondary
+                        }
+                      />
+                    }
                     title="Delivered"
                     description="Laundry handed to client"
                     active={selectedOrder.is_delivered}
@@ -539,7 +557,16 @@ export default function OrdersScreen() {
                   />
 
                   <StatusAction
-                    icon={<CreditCard size={19} color={selectedIsPaid ? colors.success : colors.textSecondary} />}
+                    icon={
+                      <CreditCard
+                        size={19}
+                        color={
+                          selectedIsPaid
+                            ? colors.success
+                            : colors.textSecondary
+                        }
+                      />
+                    }
                     title="Paid"
                     description={
                       selectedIsPaid
@@ -661,6 +688,23 @@ export default function OrdersScreen() {
               </Text>
             </View>
 
+            {orderNotices.length > 0 && (
+              <View style={styles.invoiceNoticeContainer}>
+                <Text style={styles.invoiceNoticeTitle}>
+                  SPECIAL INSTRUCTIONS
+                </Text>
+
+                {orderNotices.map((notice, index) => (
+                  <Text
+                    key={`${index}-${notice}`}
+                    style={styles.invoiceNoticeText}
+                  >
+                    • {notice}
+                  </Text>
+                ))}
+              </View>
+            )}
+
             <View style={styles.invoiceRule} />
 
             <View style={styles.invoiceTotalRow}>
@@ -711,10 +755,10 @@ function InfoCell({
   value,
   styles,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
-  styles: ReturnType<typeof createStyles>;
+  styles: OrdersStyles;
 }) {
   return (
     <View style={styles.infoCell}>
@@ -737,14 +781,14 @@ function StatusAction({
   colors,
   styles,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   description: string;
   active: boolean;
   onPress: () => void;
   loading: boolean;
   colors: AppColors;
-  styles: ReturnType<typeof createStyles>;
+  styles: OrdersStyles;
 }) {
   return (
     <Pressable
@@ -779,775 +823,4 @@ function StatusAction({
       </View>
     </Pressable>
   );
-}
-
-function createStyles(colors: AppColors) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-
-    header: {
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      paddingBottom: 22,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-
-    eyebrow: {
-      color: colors.primary,
-      fontSize: 10,
-      fontWeight: "800",
-      letterSpacing: 1.5,
-    },
-
-    title: {
-      color: colors.text,
-      fontSize: 28,
-      fontWeight: "800",
-      marginTop: 7,
-    },
-
-    subtitle: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      marginTop: 5,
-    },
-
-    addButton: {
-      backgroundColor: colors.primary,
-      width: 45,
-      height: 45,
-      borderRadius: 15,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    loader: {
-      marginTop: 40,
-    },
-
-    list: {
-      paddingHorizontal: 20,
-      paddingBottom: 30,
-      gap: 12,
-      flexGrow: 1,
-    },
-
-    card: {
-      backgroundColor: colors.surface,
-      borderRadius: 28,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 10,
-      marginBottom: 14,
-    },
-
-    cardPressed: {
-      opacity: 0.9,
-    },
-
-     photoPlaceholder: {
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-cardBody: {
-  padding: 15,
-},
-
-cardContent: {
-      paddingHorizontal: 8,
-      paddingTop: 16,
-      paddingBottom: 8,
-    },
-
-    nameRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-
-    clientName: {
-      color: colors.text,
-      fontSize: 20,
-      fontWeight: "700",
-      flexShrink: 1,
-    },
-
-    description: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
-      marginTop: 6,
-    },
-
-    cardFooter: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: 16,
-    },
-
-    stats: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 14,
-      flexShrink: 1,
-    },
-
-    stat: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-    },
-
-    statText: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      fontWeight: "600",
-    },
-
-    pillButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      height: 42,
-      paddingHorizontal: 16,
-      borderRadius: 999,
-      backgroundColor: colors.iconBackground,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-
-    pillButtonText: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: "700",
-    },
-
- cardImageWrap: {
-      borderRadius: 20,
-      overflow: "hidden",
-    },
-
-     cardImage: {
-      width: "100%",
-      height: 260,
-      borderRadius: 20,
-      backgroundColor: colors.iconBackground,
-    },
-
-    cardTop: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 11,
-    },
-
-    cardPhoto: {
-      width: 48,
-      height: 48,
-      borderRadius: 13,
-      backgroundColor: colors.iconBackground,
-      alignItems: "center",
-      justifyContent: "center",
-      overflow: "hidden",
-    },
-
-   thumbnail: {
-  width: "100%",
-  height: 190,
-  borderWidth: 0,
-},
-
-    clientInfo: {
-      flex: 1,
-      gap: 4,
-    },
-
-    phone: {
-      color: colors.textSecondary,
-      fontSize: 11,
-    },
-
-    statusRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-      marginTop: 2,
-    },
-
-    statusDot: {
-      width: 7,
-      height: 7,
-      borderRadius: 4,
-    },
-
-    status: {
-      fontSize: 9,
-      fontWeight: "800",
-      textTransform: "capitalize",
-    },
-
-    cardRight: {
-      alignItems: "flex-end",
-      gap: 7,
-    },
-
-    totalAmount: {
-      color: colors.text,
-      fontSize: 11,
-      fontWeight: "800",
-    },
-
-    divider: {
-      height: 1,
-      backgroundColor: colors.border,
-      marginVertical: 14,
-    },
-
-    cardBottom: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      gap: 5,
-    },
-
-    detail: {
-      flex: 1,
-    },
-
-    caption: {
-      color: colors.textSecondary,
-      fontSize: 9,
-      marginBottom: 5,
-    },
-
-    value: {
-      color: colors.text,
-      fontSize: 11,
-      fontWeight: "700",
-    },
-
-    cardFlags: {
-      flexDirection: "row",
-      gap: 5,
-    },
-
-    miniFlag: {
-      width: 25,
-      height: 25,
-      borderRadius: 8,
-      backgroundColor: colors.iconBackground,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    empty: {
-      padding: 35,
-      alignItems: "center",
-      gap: 9,
-    },
-
-    emptyTitle: {
-      color: colors.text,
-      fontSize: 15,
-      fontWeight: "800",
-    },
-
-    emptyText: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      textAlign: "center",
-    },
-
-    // Details sheet
-    modalRoot: {
-      flex: 1,
-      justifyContent: "flex-end",
-    },
-
-    modalBackdrop: {
-      ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(0,0,0,0.5)",
-    },
-
-    sheet: {
-      backgroundColor: colors.background,
-      borderTopLeftRadius: 25,
-      borderTopRightRadius: 25,
-      maxHeight: "92%",
-      paddingTop: 11,
-      paddingBottom: 20,
-    },
-
-    sheetHandle: {
-      width: 38,
-      height: 4,
-      borderRadius: 4,
-      backgroundColor: colors.border,
-      alignSelf: "center",
-      marginBottom: 18,
-    },
-
-    sheetHeader: {
-      paddingHorizontal: 20,
-      paddingBottom: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-
-    sheetEyebrow: {
-      color: colors.primary,
-      fontSize: 9,
-      fontWeight: "800",
-      letterSpacing: 1.3,
-    },
-
-    sheetTitle: {
-      color: colors.text,
-      fontSize: 21,
-      fontWeight: "800",
-      marginTop: 5,
-    },
-
-    closeButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    sheetContent: {
-      paddingHorizontal: 20,
-      paddingBottom: 30,
-    },
-
-    detailPhoto: {
-      width: "100%",
-      height: 205,
-      borderRadius: 17,
-      backgroundColor: colors.surface,
-    },
-
-    noPhoto: {
-      width: "100%",
-      height: 150,
-      borderRadius: 17,
-      backgroundColor: colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 10,
-    },
-
-    noPhotoText: {
-      color: colors.textSecondary,
-      fontSize: 12,
-    },
-
-    clientBlock: {
-      marginTop: 15,
-      gap: 5,
-    },
-
-    clientBlockName: {
-      color: colors.text,
-      fontSize: 17,
-      fontWeight: "800",
-    },
-
-    clientBlockPhone: {
-      color: colors.textSecondary,
-      fontSize: 12,
-    },
-
-    sectionDivider: {
-      height: 1,
-      backgroundColor: colors.border,
-      marginVertical: 19,
-    },
-
-    sectionTitle: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: "800",
-      marginBottom: 12,
-    },
-
-    sectionDescription: {
-      color: colors.textSecondary,
-      fontSize: 11,
-      lineHeight: 17,
-      marginTop: -5,
-      marginBottom: 12,
-    },
-
-    infoGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 10,
-    },
-
-    infoCell: {
-      width: "48%",
-      flexGrow: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 9,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 13,
-      padding: 11,
-    },
-
-    infoIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      backgroundColor: colors.iconBackground,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    infoText: {
-      flex: 1,
-      gap: 4,
-    },
-
-    infoLabel: {
-      color: colors.textSecondary,
-      fontSize: 9,
-    },
-
-    infoValue: {
-      color: colors.text,
-      fontSize: 11,
-      fontWeight: "700",
-    },
-
-    amountPanel: {
-      marginTop: 16,
-      padding: 15,
-      borderRadius: 15,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      gap: 11,
-    },
-
-    amountRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-    },
-
-    amountLabel: {
-      color: colors.textSecondary,
-      fontSize: 11,
-    },
-
-    amountValue: {
-      color: colors.text,
-      fontSize: 11,
-      fontWeight: "700",
-    },
-
-    amountDivider: {
-      height: 1,
-      backgroundColor: colors.border,
-    },
-
-    balanceLabel: {
-      color: colors.text,
-      fontSize: 12,
-      fontWeight: "800",
-    },
-
-    balanceValue: {
-      fontSize: 13,
-      fontWeight: "900",
-    },
-
-    actions: {
-      gap: 9,
-    },
-
-    actionRow: {
-      minHeight: 68,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 11,
-    },
-
-    actionRowActive: {
-      borderColor: colors.success,
-    },
-
-    actionIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 11,
-      backgroundColor: colors.iconBackground,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    actionText: {
-      flex: 1,
-      gap: 4,
-    },
-
-    actionTitle: {
-      color: colors.text,
-      fontSize: 12,
-      fontWeight: "800",
-    },
-
-    actionDescription: {
-      color: colors.textSecondary,
-      fontSize: 10,
-    },
-
-    checkCircle: {
-      width: 23,
-      height: 23,
-      borderRadius: 12,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    shareButton: {
-      marginTop: 18,
-      height: 49,
-      borderRadius: 14,
-      backgroundColor: colors.primary,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 9,
-    },
-
-    disabledButton: {
-      opacity: 0.7,
-    },
-
-    shareButtonText: {
-      color: colors.white,
-      fontSize: 12,
-      fontWeight: "800",
-    },
-
-    sheetFooter: {
-      color: colors.textSecondary,
-      fontSize: 10,
-      textAlign: "center",
-      marginTop: 15,
-    },
-
-    // Invoice image
-    invoiceCanvas: {
-      position: "absolute",
-      left: -1000,
-      top: 0,
-      width: 360,
-      backgroundColor: "#FFFFFF",
-    },
-
-    invoice: {
-      width: 360,
-      padding: 25,
-      backgroundColor: "#FFFFFF",
-    },
-
-    invoiceHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-
-    invoiceBrand: {
-      color: "#20242D",
-      fontSize: 17,
-      fontWeight: "900",
-      letterSpacing: 0.7,
-    },
-
-    invoiceTagline: {
-      color: "#7B8493",
-      fontSize: 9,
-      marginTop: 5,
-    },
-
-    invoiceLabel: {
-      color: "#6366F1",
-      fontSize: 12,
-      fontWeight: "900",
-      letterSpacing: 1.5,
-    },
-
-    invoiceRule: {
-      height: 1,
-      backgroundColor: "#E6E8ED",
-      marginVertical: 18,
-    },
-
-    invoiceSectionLabel: {
-      color: "#9299A5",
-      fontSize: 8,
-      fontWeight: "800",
-      letterSpacing: 1,
-      marginBottom: 6,
-    },
-
-    invoiceClient: {
-      color: "#20242D",
-      fontSize: 15,
-      fontWeight: "800",
-    },
-
-    invoicePhone: {
-      color: "#747D8B",
-      fontSize: 10,
-      marginTop: 4,
-    },
-
-    invoiceMeta: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: 20,
-    },
-
-    invoiceMetaValue: {
-      color: "#20242D",
-      fontSize: 10,
-      fontWeight: "700",
-    },
-
-    invoicePhoto: {
-      width: "100%",
-      height: 145,
-      borderRadius: 10,
-      marginTop: 20,
-    },
-
-    invoiceTableHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      paddingBottom: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: "#E6E8ED",
-      marginTop: 22,
-    },
-
-    invoiceTableHeading: {
-      color: "#9299A5",
-      fontSize: 8,
-      fontWeight: "800",
-      letterSpacing: 0.8,
-    },
-
-    invoiceTableRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingVertical: 15,
-    },
-
-    invoiceItemName: {
-      color: "#20242D",
-      fontSize: 11,
-      fontWeight: "800",
-    },
-
-    invoiceItemDescription: {
-      color: "#7B8493",
-      fontSize: 9,
-      marginTop: 5,
-    },
-
-    invoiceItemAmount: {
-      color: "#20242D",
-      fontSize: 10,
-      fontWeight: "700",
-    },
-
-    invoiceTotalRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-
-    invoiceTotalLabel: {
-      color: "#20242D",
-      fontSize: 10,
-      fontWeight: "900",
-    },
-
-    invoiceTotal: {
-      color: "#20242D",
-      fontSize: 16,
-      fontWeight: "900",
-    },
-
-    invoicePaymentRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: 12,
-    },
-
-    invoicePaymentLabel: {
-      color: "#7B8493",
-      fontSize: 10,
-    },
-
-    invoicePaymentValue: {
-      color: "#20242D",
-      fontSize: 10,
-      fontWeight: "700",
-    },
-
-    invoiceBalance: {
-      color: "#D97706",
-      fontSize: 10,
-      fontWeight: "800",
-    },
-
-    invoiceFooter: {
-      borderTopWidth: 1,
-      borderTopColor: "#E6E8ED",
-      marginTop: 25,
-      paddingTop: 17,
-      alignItems: "center",
-    },
-
-    invoiceFooterTitle: {
-      color: "#20242D",
-      fontSize: 10,
-      fontWeight: "800",
-      textAlign: "center",
-    },
-
-    invoiceFooterText: {
-      color: "#9299A5",
-      fontSize: 8,
-      marginTop: 5,
-      textAlign: "center",
-    },
-  });
 }

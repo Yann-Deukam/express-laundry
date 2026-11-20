@@ -1,11 +1,11 @@
-import { Scale, Shirt } from "lucide-react-native";
+import { ClipboardList, Scale, Shirt } from "lucide-react-native";
 import { useMemo } from "react";
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 import { useTheme } from "@/providers/ThemeProvider";
@@ -17,9 +17,11 @@ interface LaundryDetailsFormProps {
   pack: PricingPack;
   customPrice: string;
   total: number;
+  notice: string;
   onWeightChange: (value: string) => void;
   onPackChange: (pack: PricingPack) => void;
   onCustomPriceChange: (value: string) => void;
+  onNoticeChange: (value: string) => void;
 }
 
 const pricingOptions: {
@@ -49,9 +51,11 @@ export function LaundryDetailsForm({
   pack,
   customPrice,
   total,
+  notice,
   onWeightChange,
   onPackChange,
   onCustomPriceChange,
+  onNoticeChange,
 }: LaundryDetailsFormProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -162,6 +166,36 @@ export function LaundryDetailsForm({
 
         <Text style={styles.totalAmount}>
           {formatCurrency(total)}
+        </Text>
+      </View>
+
+      {/* ORDER NOTICE */}
+      <View style={styles.noticeSection}>
+        <View style={styles.noticeHeading}>
+          <View style={styles.noticeIcon}>
+            <ClipboardList size={18} color={colors.primary} />
+          </View>
+
+          <View style={styles.headingText}>
+            <Text style={styles.title}>Special instructions</Text>
+            <Text style={styles.description}>
+              Add precautions or instructions for this order.
+            </Text>
+          </View>
+        </View>
+
+        <TextInput
+          value={notice}
+          onChangeText={onNoticeChange}
+          placeholder="e.g. Do not use bleach. Wash separately. Handle with care..."
+          placeholderTextColor={colors.textSecondary}
+          multiline
+          textAlignVertical="top"
+          style={styles.noticeInput}
+        />
+
+        <Text style={styles.helper}>
+          These instructions will be saved with the order and shown on its invoice.
         </Text>
       </View>
     </View>
@@ -348,6 +382,34 @@ function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       color: colors.primary,
       fontSize: 17,
       fontWeight: "800",
+    },
+    noticeSection: {
+      marginTop: 25,
+    },
+    noticeHeading: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      marginBottom: 13,
+    },
+    noticeIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 11,
+      backgroundColor: colors.iconBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    noticeInput: {
+      minHeight: 110,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      color: colors.text,
+      fontSize: 13,
+      lineHeight: 20,
+      padding: 14,
     },
   });
 }

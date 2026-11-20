@@ -1,4 +1,3 @@
-
 import {
   useMutation,
   useQuery,
@@ -7,14 +6,12 @@ import {
 import { useMemo } from "react";
 
 import { useAuth } from "@/features/auth/hooks/useAuth";
-
 import { saveLaundryOrder } from "@/services/laundryOrderService";
 import {
   createClient,
   getClients,
   type Client,
 } from "@/services/orderService";
-
 import { useOrderDraftStore } from "@/stores/orderDraftStore";
 
 import {
@@ -26,15 +23,11 @@ import {
 
 export function useNewOrder() {
   const queryClient = useQueryClient();
-
   const { businessId, loading: authLoading } = useAuth();
-
   const draft = useOrderDraftStore();
 
-  // Load clients belonging to the active business.
   const clientsQuery = useQuery({
     queryKey: ["clients", businessId],
-
     queryFn: () => {
       if (!businessId) {
         throw new Error("No active business was found.");
@@ -42,19 +35,16 @@ export function useNewOrder() {
 
       return getClients(businessId);
     },
-
     enabled: !authLoading && !!businessId,
   });
 
   const clients = clientsQuery.data ?? [];
 
   const selectedClient = useMemo(
-    () =>
-      clients.find((client) => client.id === draft.clientId) ?? null,
+    () => clients.find((client) => client.id === draft.clientId) ?? null,
     [clients, draft.clientId]
   );
 
-  // Create a client inside the active business.
   const createClientMutation = useMutation({
     mutationFn: (input: { name: string; phone: string }) => {
       if (!businessId) {
@@ -73,7 +63,6 @@ export function useNewOrder() {
     },
   });
 
-  // Create a laundry order inside the active business.
   const createOrderMutation = useMutation({
     mutationFn: () => {
       if (!businessId) {
@@ -95,9 +84,7 @@ export function useNewOrder() {
           toLocalDateInput(draft.deliveryDate)
         ),
 
-        weight_kg: Number(
-          draft.weightKg.replace(",", ".")
-        ),
+        weight_kg: Number(draft.weightKg.replace(",", ".")),
 
         pack: draft.pack,
 
@@ -107,6 +94,8 @@ export function useNewOrder() {
             : null,
 
         photo_uri: draft.photoUri,
+
+        notice: draft.notice.trim() || null,
       });
     },
 
@@ -115,7 +104,6 @@ export function useNewOrder() {
         queryClient.invalidateQueries({
           queryKey: ["orders", businessId],
         }),
-
         queryClient.invalidateQueries({
           queryKey: ["dashboard", businessId],
         }),
@@ -123,13 +111,8 @@ export function useNewOrder() {
     },
   });
 
-  const weight = Number(
-    draft.weightKg.replace(",", ".")
-  );
-
-  const customPrice = Number(
-    draft.customPrice.replace(",", ".")
-  );
+  const weight = Number(draft.weightKg.replace(",", "."));
+  const customPrice = Number(draft.customPrice.replace(",", "."));
 
   const total = calculateOrderTotal(
     Number.isFinite(weight) ? weight : 0,
@@ -197,9 +180,7 @@ export function useNewOrder() {
     clients,
     selectedClient,
 
-    isLoadingClients:
-      authLoading || clientsQuery.isLoading,
-
+    isLoadingClients: authLoading || clientsQuery.isLoading,
     clientsError: clientsQuery.error,
 
     createClient: createClientMutation.mutateAsync,

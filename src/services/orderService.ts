@@ -31,6 +31,11 @@ export interface OrderItem {
   price: number;
   photo_url: string | null;
   photo_signed_url: string | null;
+
+  item_notes?: {
+    id: string;
+    note: string;
+  }[];
 }
 
 export interface Order {
@@ -73,15 +78,13 @@ const ORDER_SELECT = `
     phone
   ),
   items!items_order_business_fkey (
-    id,
-    dress_type,
-    pack,
-    weight_kg,
-    unit_price,
-    price,
-    photo_url
-  )
+  id, dress_type, pack, weight_kg, unit_price, price, photo_url,
+  item_notes!item_notes_item_business_fkey (id, note)
+)
+)
 `;
+
+
 
 async function attachSignedPhotoUrls(
   orders: Order[]
@@ -169,11 +172,13 @@ export async function getClients(
 
 
 
+
 export async function createClient(
   businessId: string,
   input: {
     name: string;
     phone: string;
+    notes?: string;
   }
 ): Promise<Client> {
   if (!businessId) {
@@ -182,6 +187,7 @@ export async function createClient(
 
   const name = input.name.trim();
   const phone = input.phone.trim();
+  const notes = input.notes?.trim() || null;
 
   if (!name || !phone) {
     throw new Error(
@@ -195,6 +201,7 @@ export async function createClient(
       business_id: businessId,
       name,
       phone,
+      notes,
     })
     .select("id, name, phone, notes")
     .single();
@@ -203,6 +210,45 @@ export async function createClient(
 
   return data as Client;
 }
+
+export async function updateClient(
+  businessId: string,
+  clientId: string,
+  input: {
+    name: string;
+    phone: string;
+    notes?: string;
+  }
+): Promise<Client> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
+  const name = input.name.trim();
+  const phone = input.phone.trim();
+  const notes = input.notes?.trim() || null;
+
+  if (!name || !phone) {
+    throw new Error("Please enter the client's name and phone number.");
+  }
+
+  const { data, error } = await supabase
+    .from("clients")
+    .update({
+      name,
+      phone,
+      notes,
+    })
+    .eq("id", clientId)
+    .eq("business_id", businessId)
+    .select("id, name, phone, notes")
+    .single();
+
+  if (error) throw error;
+
+  return data as Client;
+}
+
 
 
 export async function getOrders(

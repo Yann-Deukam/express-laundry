@@ -2,6 +2,7 @@
 import { File } from "expo-file-system";
 
 import {
+  CreateOrderInput,
   getOrder,
   type Order,
   type PricingPack,
@@ -9,14 +10,12 @@ import {
 
 import { supabase } from "@/utils/supabase";
 
-export interface SaveLaundryOrderInput {
-  client_id: string;
-  pickup_date: string;
-  delivery_date: string;
+export interface SaveLaundryOrderInput extends CreateOrderInput {
   weight_kg: number;
   pack: PricingPack;
   custom_price?: number | null;
   photo_uri?: string | null;
+  notice?: string | null;
 }
 
 function calculateTotal(
@@ -197,6 +196,22 @@ export async function saveLaundryOrder(
       if (photoError) throw photoError;
     }
 
+
+    const notice = input.notice?.trim();
+
+if (notice) {
+  const { error: noticeError } = await supabase
+    .from("item_notes")
+    .insert({
+      business_id: businessId,
+      item_id: savedItem.id,
+      note: notice,
+    });
+
+  if (noticeError) {
+    throw noticeError;
+  }
+}
     // Update the order total.
     const { error: totalError } = await supabase
       .from("orders")
@@ -217,19 +232,20 @@ export async function saveLaundryOrder(
     if (clientError) throw clientError;
 
     const snapshot = {
-      order_id: order.id,
-      business_id: businessId,
-      client,
-      pickup_date: input.pickup_date,
-      delivery_date: input.delivery_date,
-      weight_kg: input.weight_kg,
-      pack: input.pack,
-      unit_price: unitPrice,
-      photo_url: uploadedPhotoPath,
-      total,
-      currency: "XAF",
-      generated_at: new Date().toISOString(),
-    };
+  order_id: order.id,
+  business_id: businessId,
+  client,
+  pickup_date: input.pickup_date,
+  delivery_date: input.delivery_date,
+  weight_kg: input.weight_kg,
+  pack: input.pack,
+  unit_price: unitPrice,
+  photo_url: uploadedPhotoPath,
+  notice: notice || null,
+  total,
+  currency: "XAF",
+  generated_at: new Date().toISOString(),
+};
 
     // Save the receipt version under the same business.
     const { error: receiptError } = await supabase
