@@ -2,8 +2,8 @@
 import { Tabs, useRouter } from "expo-router";
 import {
   ClipboardList,
+  Cog,
   LayoutDashboard,
-  MoreHorizontal,
   Plus,
   Users,
 } from "lucide-react-native";
@@ -87,14 +87,14 @@ export default function AppLayout() {
       />
 
       <Tabs.Screen
-        name="more"
-        options={{
-          title: "More",
-          tabBarIcon: ({ color, size }) => (
-            <MoreHorizontal color={color} size={size} />
-          ),
-        }}
-      />
+  name="settings"
+  options={{
+    title: "Settings",
+    tabBarIcon: ({ color, size }) => (
+      <Cog color={color} size={size} />
+    ),
+  }}
+/>
     </Tabs>
   );
 }
