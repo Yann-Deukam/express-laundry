@@ -1,54 +1,58 @@
 
+import { Eye, EyeOff } from "lucide-react-native";
 import { useState } from "react";
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-    type TextInputProps,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextInputProps,
 } from "react-native";
 
-import { Colors } from "../../constants/colors";
-
-type Props = TextInputProps & {
+interface AuthInputProps extends TextInputProps {
   label: string;
   password?: boolean;
-};
+}
 
 export function AuthInput({
   label,
   password = false,
-  secureTextEntry,
+  style,
   ...inputProps
-}: Props) {
+}: AuthInputProps) {
   const [visible, setVisible] = useState(false);
 
-  const hidePassword = password && !visible;
+  const secure = password && !visible;
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
 
-      <View style={styles.inputContainer}>
+      <View style={styles.inputWrapper}>
         <TextInput
           {...inputProps}
-          style={styles.input}
-          placeholderTextColor="#969BA5"
-          secureTextEntry={password ? hidePassword : secureTextEntry}
+          style={[styles.input, password && styles.passwordInput, style]}
+          secureTextEntry={secure}
+          placeholderTextColor="#929BA9"
+          selectionColor="#F28C72"
         />
 
         {password && (
           <Pressable
-            onPress={() => setVisible((value) => !value)}
-            style={styles.visibility}
+            onPress={() => setVisible((current) => !current)}
+            style={styles.visibilityButton}
+            hitSlop={10}
+            accessibilityRole="button"
             accessibilityLabel={
               visible ? "Hide password" : "Show password"
             }
           >
-            <Text style={styles.eye}>
-              {visible ? "Hide" : "Show"}
-            </Text>
+            {visible ? (
+              <EyeOff size={20} color="#778397" />
+            ) : (
+              <Eye size={20} color="#778397" />
+            )}
           </Pressable>
         )}
       </View>
@@ -58,38 +62,38 @@ export function AuthInput({
 
 const styles = StyleSheet.create({
   container: {
+    width: "100%",
     gap: 9,
   },
-
   label: {
-    color: Colors.text,
+    color: "#263449",
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-
-  inputContainer: {
-    height: 48,
+  inputWrapper: {
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.input,
-    borderRadius: 15,
-    paddingHorizontal: 17,
+    backgroundColor: "#F7F9FC",
+    borderWidth: 1,
+    borderColor: "#E1E7EF",
+    borderRadius: 14,
   },
-
   input: {
     flex: 1,
-    height: "100%",
-    color: Colors.text,
+    minHeight: 52,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    color: "#263449",
     fontSize: 14,
   },
-
-  visibility: {
-    padding: 8,
+  passwordInput: {
+    paddingRight: 4,
   },
-
-  eye: {
-    color: Colors.primary,
-    fontSize: 12,
-    fontWeight: "700",
+  visibilityButton: {
+    width: 48,
+    minHeight: 52,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

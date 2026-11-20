@@ -6,12 +6,12 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, Bell, CheckCheck } from "lucide-react-native";
 import { useMemo } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -36,7 +36,7 @@ export default function NotificationsScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => router.replace("/(tabs)/settings/")}
           style={styles.backButton}
           accessibilityRole="button"
           accessibilityLabel="Go back"

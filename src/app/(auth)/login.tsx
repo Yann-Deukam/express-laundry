@@ -2,22 +2,23 @@
 import { AuthInput } from "@/components/auth/AuthInput";
 import { Colors } from "@/constants/colors";
 import { supabase } from "@/utils/supabase";
+import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import Animated, {
-    FadeInDown,
-    FadeInUp,
+  FadeInDown,
+  FadeInUp,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -69,18 +70,22 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+  <StatusBar style="dark" />
 
-      <KeyboardAvoidingView
-        style={styles.keyboard}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+  <KeyboardAvoidingView
+    style={styles.keyboard}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+    keyboardVerticalOffset={0}
+  >
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={
+        Platform.OS === "ios" ? "interactive" : "on-drag"
+      }
+      showsVerticalScrollIndicator={false}
+    >
           <View style={styles.wrapper}>
             {/* Decorative background panel */}
             <Animated.View
@@ -172,6 +177,23 @@ export default function LoginScreen() {
 
               <View style={styles.divider} />
 
+
+              <View style={styles.signupPrompt}>
+                <Text style={styles.signupText}>
+                  Don't have an account?
+                </Text>
+
+                <Pressable
+                  onPress={() => router.push("/(auth)/signup")}
+                  disabled={loading}
+                >
+                  <Text style={styles.signupLink}>
+                    Create account
+                  </Text>
+                </Pressable>
+              </View>
+
+
               <Text style={styles.footer}>
                 Private workspace · Express Laundry
               </Text>
@@ -193,12 +215,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 22,
-    paddingVertical: 28,
-  },
+ scrollContent: {
+  flexGrow: 1,
+  justifyContent: "center",
+  paddingHorizontal: 22,
+  paddingVertical: 28,
+},
 
   wrapper: {
     width: "100%",
@@ -343,4 +365,26 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 11,
   },
+
+
+signupPrompt: {
+  flexDirection: "row",
+  justifyContent: "center",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: 5,
+  marginBottom: 18,
+},
+
+signupText: {
+  color: Colors.textSecondary,
+  fontSize: 12,
+},
+
+signupLink: {
+  color: Colors.coral,
+  fontSize: 12,
+  fontWeight: "800",
+},
+
 });

@@ -2,25 +2,25 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import {
-    Bell,
-    Building2,
-    CircleHelp,
-    Info,
-    LogOut,
-    Moon,
-    Sun,
-    UserRound,
-    Users,
-    Wallet,
+  Bell,
+  Building2,
+  CircleHelp,
+  Info,
+  LogOut,
+  Moon,
+  Sun,
+  UserRound,
+  Users,
+  Wallet,
 } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import {
-    Alert,
-    Pressable,
-    ScrollView,
-    Switch,
-    Text,
-    View,
+  Alert,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -123,56 +123,7 @@ export default function MoreScreen() {
             </Text>
           </View>
 
-          <Pressable
-            onPress={openNotifications}
-            style={{
-              width: 46,
-              height: 46,
-              borderRadius: 14,
-              backgroundColor: colors.surface,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              unreadCount > 0
-                ? `${unreadCount} unread notifications`
-                : "Notifications"
-            }
-          >
-            <Bell color={colors.text} size={21} />
-
-            {unreadCount > 0 && (
-              <View
-                style={{
-                  position: "absolute",
-                  top: -5,
-                  right: -5,
-                  minWidth: 19,
-                  height: 19,
-                  borderRadius: 10,
-                  backgroundColor: colors.danger,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  paddingHorizontal: 4,
-                  borderWidth: 2,
-                  borderColor: colors.background,
-                }}
-              >
-                <Text
-                  style={{
-                    color: colors.white,
-                    fontSize: 9,
-                    fontWeight: "800",
-                  }}
-                >
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </Text>
-              </View>
-            )}
-          </Pressable>
+         
         </View>
 
         {/* Active business */}
