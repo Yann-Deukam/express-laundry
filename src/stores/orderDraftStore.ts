@@ -10,6 +10,7 @@ interface OrderDraftState {
   pack: PricingPack;
   customPrice: string;
   photoUri: string | null;
+  notice: string;
 
   setClient: (id: string | null) => void;
   setPickupDate: (date: string) => void;
@@ -18,6 +19,7 @@ interface OrderDraftState {
   setPack: (pack: PricingPack) => void;
   setCustomPrice: (price: string) => void;
   setPhotoUri: (uri: string | null) => void;
+  setNotice: (notice: string) => void;
   resetDraft: () => void;
 }
 
@@ -32,6 +34,7 @@ function getInitialState() {
     pack: "per_kg_500" as PricingPack,
     customPrice: "",
     photoUri: null,
+    notice: "",
   };
 }
 
@@ -45,6 +48,7 @@ export const useOrderDraftStore = create<OrderDraftState>((set) => ({
   setPack: (pack) => set({ pack }),
   setCustomPrice: (customPrice) => set({ customPrice }),
   setPhotoUri: (photoUri) => set({ photoUri }),
+  setNotice: (notice) => set({ notice }),
 
   resetDraft: () => set(getInitialState()),
 }));

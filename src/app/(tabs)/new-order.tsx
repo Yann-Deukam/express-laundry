@@ -1,3 +1,4 @@
+
 import { useRouter } from "expo-router";
 import { Check, ChevronDown, Plus, UserRound } from "lucide-react-native";
 import { useMemo, useState } from "react";
@@ -147,7 +148,9 @@ export default function NewOrderScreen() {
             style={styles.createClientAction}
           >
             <Plus size={15} color={colors.primary} />
-            <Text style={styles.createClientText}>Select or create a client</Text>
+            <Text style={styles.createClientText}>
+              Select or create a client
+            </Text>
           </Pressable>
         </View>
 
@@ -159,16 +162,18 @@ export default function NewOrderScreen() {
           onDeliveryChange={draft.setDeliveryDate}
         />
 
-        {/* LAUNDRY DETAILS */}
+        {/* LAUNDRY DETAILS AND ORDER NOTICE */}
         <LaundryDetailsForm
-          weight={draft.weightKg}
-          pack={draft.pack}
-          customPrice={draft.customPrice}
-          total={total}
-          onWeightChange={draft.setWeightKg}
-          onPackChange={draft.setPack}
-          onCustomPriceChange={draft.setCustomPrice}
-        />
+  weight={draft.weightKg}
+  pack={draft.pack}
+  customPrice={draft.customPrice}
+  total={total}
+  notice={draft.notice}
+  onWeightChange={draft.setWeightKg}
+  onPackChange={draft.setPack}
+  onCustomPriceChange={draft.setCustomPrice}
+  onNoticeChange={draft.setNotice}
+/>
 
         {/* WEIGHING PHOTO */}
         <LaundryPhotoPicker
@@ -214,7 +219,9 @@ export default function NewOrderScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
+function createStyles(
+  colors: ReturnType<typeof useTheme>["colors"]
+) {
   return StyleSheet.create({
     screen: {
       flex: 1,

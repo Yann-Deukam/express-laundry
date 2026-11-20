@@ -1,26 +1,53 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { useAuth } from "@/features/auth/hooks/useAuth";
+
 import {
-    getOrdersDueSoon,
-    getOrdersInProgress,
-    getUnpaidOrders,
+  getOrdersDueSoon,
+  getOrdersInProgress,
+  getUnpaidOrders,
 } from "@/services/orderService";
 
 export function useDashboard() {
+  const { businessId, loading: authLoading } = useAuth();
+
+  const enabled = !authLoading && !!businessId;
+
   const dueSoon = useQuery({
-    queryKey: ["dashboard", "due-soon"],
-    queryFn: getOrdersDueSoon,
+    queryKey: ["dashboard", businessId, "due-soon"],
+    queryFn: () => {
+      if (!businessId) {
+        throw new Error("No active business was found.");
+      }
+
+      return getOrdersDueSoon(businessId);
+    },
+    enabled,
   });
 
   const inProgress = useQuery({
-    queryKey: ["dashboard", "in-progress"],
-    queryFn: getOrdersInProgress,
+    queryKey: ["dashboard", businessId, "in-progress"],
+    queryFn: () => {
+      if (!businessId) {
+        throw new Error("No active business was found.");
+      }
+
+      return getOrdersInProgress(businessId);
+    },
+    enabled,
   });
 
   const unpaid = useQuery({
-    queryKey: ["dashboard", "unpaid"],
-    queryFn: getUnpaidOrders,
+    queryKey: ["dashboard", businessId, "unpaid"],
+    queryFn: () => {
+      if (!businessId) {
+        throw new Error("No active business was found.");
+      }
+
+      return getUnpaidOrders(businessId);
+    },
+    enabled,
   });
 
   return {
@@ -29,6 +56,7 @@ export function useDashboard() {
     unpaid: unpaid.data ?? [],
 
     isLoading:
+      authLoading ||
       dueSoon.isLoading ||
       inProgress.isLoading ||
       unpaid.isLoading,
@@ -39,12 +67,12 @@ export function useDashboard() {
       unpaid.isError,
 
     error:
-      dueSoon.error ||
-      inProgress.error ||
+      dueSoon.error ??
+      inProgress.error ??
       unpaid.error,
 
     refetch: async () => {
-      await Promise.all([
+      return Promise.all([
         dueSoon.refetch(),
         inProgress.refetch(),
         unpaid.refetch(),
