@@ -8,6 +8,7 @@ import {
 import {
   getOrder,
   getOrders,
+  markOrderAsPaid,
   updateOrderDelivery,
   updateOrderPayment,
   updateOrderStatus,
@@ -199,6 +200,35 @@ export function useUpdateOrderWashed() {
   });
 }
 
+/**
+ * Marks an entire order as paid.
+ * The service records the full order total, staff member, and timestamp.
+ */
+export function useMarkOrderAsPaid() {
+  const { businessId } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      markOrderAsPaid(
+        id,
+        requireBusinessId(businessId)
+      ),
+
+    onSuccess: async (updatedOrder) => {
+      await refreshOrderQueries(
+        queryClient,
+        requireBusinessId(businessId),
+        updatedOrder
+      );
+    },
+  });
+}
+
+/**
+ * Kept temporarily for compatibility with existing screens.
+ * Partial payments are rejected by the service.
+ */
 export function useUpdateOrderPayment() {
   const { businessId } = useAuth();
   const queryClient = useQueryClient();

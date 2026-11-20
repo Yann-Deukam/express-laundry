@@ -31,7 +31,6 @@ export interface OrderItem {
   price: number;
   photo_url: string | null;
   photo_signed_url: string | null;
-
   item_notes?: {
     id: string;
     note: string;
@@ -46,6 +45,9 @@ export interface Order {
   delivery_date: string;
   total: number;
   amount_paid: number;
+  paid_at: string | null;
+  paid_by: string | null;
+  paid_by_name?: string | null;
   is_delivered: boolean;
   is_washed: boolean;
   created_at: string;
@@ -70,6 +72,8 @@ const ORDER_SELECT = `
   delivery_date,
   total,
   amount_paid,
+  paid_at,
+  paid_by,
   is_delivered,
   is_washed,
   created_at,
@@ -78,13 +82,19 @@ const ORDER_SELECT = `
     phone
   ),
   items!items_order_business_fkey (
-  id, dress_type, pack, weight_kg, unit_price, price, photo_url,
-  item_notes!item_notes_item_business_fkey (id, note)
-)
-)
+    id,
+    dress_type,
+    pack,
+    weight_kg,
+    unit_price,
+    price,
+    photo_url,
+    item_notes!item_notes_item_business_fkey (
+      id,
+      note
+    )
+  )
 `;
-
-
 
 async function attachSignedPhotoUrls(
   orders: Order[]
@@ -131,6 +141,58 @@ async function attachSignedPhotoUrls(
   );
 }
 
+async function attachPaymentNames(
+  orders: Order[]
+): Promise<Order[]> {
+  const paidByIds = [
+    ...new Set(
+      orders
+        .map((order) => order.paid_by)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+
+  if (paidByIds.length === 0) {
+    return orders.map((order) => ({
+      ...order,
+      paid_by_name: null,
+    }));
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", paidByIds);
+
+  if (error) {
+    console.warn("Could not load payment staff names:", error.message);
+
+    return orders.map((order) => ({
+      ...order,
+      paid_by_name: null,
+    }));
+  }
+
+  const names = new Map(
+    (data ?? []).map((profile) => [
+      profile.id,
+      profile.full_name,
+    ])
+  );
+
+  return orders.map((order) => ({
+    ...order,
+    paid_by_name: order.paid_by
+      ? names.get(order.paid_by) ?? null
+      : null,
+  }));
+}
+
+async function enrichOrders(orders: Order[]): Promise<Order[]> {
+  const withPhotos = await attachSignedPhotoUrls(orders);
+  return attachPaymentNames(withPhotos);
+}
+
 async function getEnrichedOrder(
   businessId: string,
   orderId: string
@@ -144,13 +206,12 @@ async function getEnrichedOrder(
 
   if (error) throw error;
 
-  const [order] = await attachSignedPhotoUrls([
+  const [order] = await enrichOrders([
     data as unknown as Order,
   ]);
 
   return order;
 }
-
 
 export async function getClients(
   businessId: string
@@ -169,9 +230,6 @@ export async function getClients(
 
   return (data ?? []) as Client[];
 }
-
-
-
 
 export async function createClient(
   businessId: string,
@@ -249,8 +307,6 @@ export async function updateClient(
   return data as Client;
 }
 
-
-
 export async function getOrders(
   businessId: string
 ): Promise<Order[]> {
@@ -271,7 +327,7 @@ export async function getOrders(
     throw error;
   }
 
-  return attachSignedPhotoUrls(
+  return enrichOrders(
     (data ?? []) as unknown as Order[]
   );
 }
@@ -309,9 +365,8 @@ export async function createOrder(
 
   if (error) throw error;
 
- return getOrder(data.id, businessId);
+  return getOrder(data.id, businessId);
 }
-
 
 export async function updateOrderStatus(
   id: string,
@@ -380,7 +435,75 @@ export async function updateOrderWashed(
 }
 
 /**
- * Supports full and partial payments.
+ * Marks the entire order as paid.
+ * Records the authenticated staff member and payment timestamp.
+ */
+export async function markOrderAsPaid(
+  id: string,
+  businessId: string
+): Promise<Order> {
+  if (!businessId) {
+    throw new Error("No active business was found.");
+  }
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+
+  if (!user) {
+    throw new Error("You must be signed in to record a payment.");
+  }
+
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select("total, amount_paid")
+    .eq("id", id)
+    .eq("business_id", businessId)
+    .single();
+
+  if (orderError) throw orderError;
+
+  const total = Number(order.total);
+  const amountPaid = Number(order.amount_paid);
+
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error("This order does not have a valid total.");
+  }
+
+  if (amountPaid >= total) {
+    throw new Error("This order has already been marked as paid.");
+  }
+
+  const { data: updatedOrder, error: updateError } = await supabase
+    .from("orders")
+    .update({
+      amount_paid: total,
+      paid_at: new Date().toISOString(),
+      paid_by: user.id,
+    })
+    .eq("id", id)
+    .eq("business_id", businessId)
+    .lt("amount_paid", total)
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+
+  if (!updatedOrder) {
+    throw new Error(
+      "This order may already have been marked as paid. Please refresh and check again."
+    );
+  }
+
+  return getOrder(id, businessId);
+}
+
+/**
+ * Kept for compatibility with existing callers.
+ * Partial payments are no longer supported.
  */
 export async function updateOrderPayment(
   id: string,
@@ -395,30 +518,25 @@ export async function updateOrderPayment(
     throw new Error("Please enter a valid payment amount.");
   }
 
-  const { data: order, error: orderError } = await supabase
+  const { data: order, error } = await supabase
     .from("orders")
     .select("total")
     .eq("id", id)
     .eq("business_id", businessId)
     .single();
 
-  if (orderError) throw orderError;
-
-  if (amountPaid > Number(order.total)) {
-    throw new Error("Payment cannot exceed the order total.");
-  }
-
-  const { error } = await supabase
-    .from("orders")
-    .update({ amount_paid: amountPaid })
-    .eq("id", id)
-    .eq("business_id", businessId);
-
   if (error) throw error;
 
-  return getOrder(id, businessId);
-}
+  const total = Number(order.total);
 
+  if (amountPaid !== total) {
+    throw new Error(
+      "Partial payments are not supported. Please mark the full order as paid."
+    );
+  }
+
+  return markOrderAsPaid(id, businessId);
+}
 
 function getLocalDayRange() {
   const now = new Date();
@@ -441,7 +559,6 @@ function getLocalDayRange() {
   };
 }
 
-
 export async function getOrdersDueSoon(
   businessId: string
 ): Promise<Order[]> {
@@ -458,12 +575,10 @@ export async function getOrdersDueSoon(
 
   if (error) throw error;
 
-  return attachSignedPhotoUrls(
+  return enrichOrders(
     (data ?? []) as unknown as Order[]
   );
 }
-
-
 
 export async function getOrdersInProgress(
   businessId: string
@@ -479,12 +594,10 @@ export async function getOrdersInProgress(
 
   if (error) throw error;
 
-  return attachSignedPhotoUrls(
+  return enrichOrders(
     (data ?? []) as unknown as Order[]
   );
 }
-
-
 
 export async function getUnpaidOrders(
   businessId: string
@@ -499,7 +612,7 @@ export async function getUnpaidOrders(
 
   if (error) throw error;
 
-  const orders = await attachSignedPhotoUrls(
+  const orders = await enrichOrders(
     (data ?? []) as unknown as Order[]
   );
 
@@ -508,3 +621,24 @@ export async function getUnpaidOrders(
   );
 }
 
+export async function getPaidOrders(
+  businessId: string
+): Promise<Order[]> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select(ORDER_SELECT)
+    .eq("business_id", businessId)
+    .gt("total", 0)
+    .order("paid_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw error;
+
+  const orders = await enrichOrders(
+    (data ?? []) as unknown as Order[]
+  );
+
+  return orders.filter(
+    (order) => Number(order.amount_paid) >= Number(order.total)
+  );
+}

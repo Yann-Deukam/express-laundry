@@ -8,7 +8,15 @@ import {
   type PricingPack,
 } from "@/services/orderService";
 
+import {
+  calculateItemPrice,
+  type PricingRates,
+} from "@/lib/pricing";
+
+
+
 import { supabase } from "@/utils/supabase";
+import { getBusinessPricing } from "./pricingService";
 
 export interface SaveLaundryOrderInput extends CreateOrderInput {
   weight_kg: number;
@@ -16,37 +24,6 @@ export interface SaveLaundryOrderInput extends CreateOrderInput {
   custom_price?: number | null;
   photo_uri?: string | null;
   notice?: string | null;
-}
-
-function calculateTotal(
-  weightKg: number,
-  pack: PricingPack,
-  customPrice?: number | null
-) {
-  if (pack === "per_kg_500") {
-    return {
-      unitPrice: 500,
-      total: Math.round(weightKg * 500 * 100) / 100,
-    };
-  }
-
-  if (pack === "per_kg_1000") {
-    return {
-      unitPrice: 1000,
-      total: Math.round(weightKg * 1000 * 100) / 100,
-    };
-  }
-
-  const total = Number(customPrice);
-
-  if (!Number.isFinite(total) || total <= 0) {
-    throw new Error("Please enter a valid custom price.");
-  }
-
-  return {
-    unitPrice: total,
-    total: Math.round(total * 100) / 100,
-  };
 }
 
 function getPhotoExtension(uri: string) {
@@ -128,10 +105,36 @@ export async function saveLaundryOrder(
     throw new Error("You must be signed in to create an order.");
   }
 
-  const { unitPrice, total } = calculateTotal(
-    input.weight_kg,
-    input.pack,
-    input.custom_price
+  // Fetch configured business pricing before creating the order.
+  // Custom pricing does not depend on the package rates.
+  let unitPrice: number;
+  let pricingRates: PricingRates | undefined;
+
+  if (input.pack === "custom") {
+    const total = calculateItemPrice({
+      pack: "custom",
+      customPrice: input.custom_price,
+    });
+
+    unitPrice = total;
+  } else {
+    const businessPricing = await getBusinessPricing(businessId);
+
+    pricingRates = {
+      per_kg_500: businessPricing.price_per_kg_500,
+      per_kg_1000: businessPricing.price_per_kg_1000,
+    };
+
+    unitPrice = pricingRates[input.pack];
+  }
+
+  const total = calculateItemPrice(
+    {
+      pack: input.pack,
+      weightKg: input.weight_kg,
+      customPrice: input.custom_price,
+    },
+    pricingRates
   );
 
   let orderId: string | null = null;
@@ -177,7 +180,7 @@ export async function saveLaundryOrder(
 
     if (itemError) throw itemError;
 
-    // Upload a new photo using the business-first Storage path.
+    // Upload weighing photo if provided.
     if (input.photo_uri) {
       uploadedPhotoPath = await uploadWeighingPhoto(
         input.photo_uri,
@@ -196,22 +199,23 @@ export async function saveLaundryOrder(
       if (photoError) throw photoError;
     }
 
-
+    // Save optional item notice.
     const notice = input.notice?.trim();
 
-if (notice) {
-  const { error: noticeError } = await supabase
-    .from("item_notes")
-    .insert({
-      business_id: businessId,
-      item_id: savedItem.id,
-      note: notice,
-    });
+    if (notice) {
+      const { error: noticeError } = await supabase
+        .from("item_notes")
+        .insert({
+          business_id: businessId,
+          item_id: savedItem.id,
+          note: notice,
+        });
 
-  if (noticeError) {
-    throw noticeError;
-  }
-}
+      if (noticeError) {
+        throw noticeError;
+      }
+    }
+
     // Update the order total.
     const { error: totalError } = await supabase
       .from("orders")
@@ -231,23 +235,24 @@ if (notice) {
 
     if (clientError) throw clientError;
 
+    // Preserve the actual price applied to this order.
     const snapshot = {
-  order_id: order.id,
-  business_id: businessId,
-  client,
-  pickup_date: input.pickup_date,
-  delivery_date: input.delivery_date,
-  weight_kg: input.weight_kg,
-  pack: input.pack,
-  unit_price: unitPrice,
-  photo_url: uploadedPhotoPath,
-  notice: notice || null,
-  total,
-  currency: "XAF",
-  generated_at: new Date().toISOString(),
-};
+      order_id: order.id,
+      business_id: businessId,
+      client,
+      pickup_date: input.pickup_date,
+      delivery_date: input.delivery_date,
+      weight_kg: input.weight_kg,
+      pack: input.pack,
+      unit_price: unitPrice,
+      photo_url: uploadedPhotoPath,
+      notice: notice || null,
+      total,
+      currency: "XAF",
+      generated_at: new Date().toISOString(),
+    };
 
-    // Save the receipt version under the same business.
+    // Save receipt version under the same business.
     const { error: receiptError } = await supabase
       .from("receipt_versions")
       .insert({
@@ -270,8 +275,6 @@ if (notice) {
     }
 
     // Delete only the order created during this failed operation.
-    // Related rows are expected to be removed through the existing
-    // database foreign-key cascade.
     if (orderId) {
       await supabase
         .from("orders")
