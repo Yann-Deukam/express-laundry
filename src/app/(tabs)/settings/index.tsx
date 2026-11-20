@@ -1,12 +1,4 @@
 
-import { SettingsRow } from "@/components/settings/SettingRow";
-import { SettingsSection } from "@/components/settings/SettingSection";
-import { useAuth } from "@/features/auth/hooks/useAuth";
-import { useNotifications } from "@/hooks/useNotifications";
-import { queryClient } from "@/lib/queryClient";
-import { useTheme } from "@/providers/ThemeProvider";
-import { createSettingsStyles } from "@/styles/settings.styles";
-import { supabase } from "@/utils/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import {
@@ -15,7 +7,8 @@ import {
     CircleHelp,
     Info,
     LogOut,
-    Palette,
+    Moon,
+    Sun,
     UserRound,
     Users,
     Wallet,
@@ -25,19 +18,28 @@ import {
     Alert,
     Pressable,
     ScrollView,
+    Switch,
     Text,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { SettingsRow } from "@/components/settings/SettingRow";
+import { SettingsSection } from "@/components/settings/SettingSection";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useNotifications } from "@/hooks/useNotifications";
+import { queryClient } from "@/lib/queryClient";
+import { useTheme } from "@/providers/ThemeProvider";
+import { createSettingsStyles } from "@/styles/settings.styles";
+import { supabase } from "@/utils/supabase";
 
 export default function MoreScreen() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
 
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const { user, business, role } = useAuth();
-
   const { unreadCount } = useNotifications();
 
   const styles = useMemo(
@@ -111,6 +113,7 @@ export default function MoreScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>WORKSPACE</Text>
@@ -268,13 +271,73 @@ export default function MoreScreen() {
           title="Preferences"
           colors={colors}
         >
-          <SettingsRow
-            icon={Palette}
-            title="Appearance"
-            description="Light and dark mode"
-            colors={colors}
-            onPress={() => navigate("appearance")}
-          />
+          {/* Appearance */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingVertical: 13,
+              gap: 13,
+            }}
+          >
+            <View
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                backgroundColor: colors.surface,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {isDark ? (
+                <Moon
+                  size={20}
+                  color={colors.primary}
+                />
+              ) : (
+                <Sun
+                  size={20}
+                  color={colors.primary}
+                />
+              )}
+            </View>
+
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text
+                style={{
+                  color: colors.text,
+                  fontSize: 14,
+                  fontWeight: "700",
+                }}
+              >
+                Appearance
+              </Text>
+
+              <Text
+                style={{
+                  color: colors.text,
+                  opacity: 0.65,
+                  fontSize: 12,
+                }}
+              >
+                {isDark ? "Dark mode" : "Light mode"}
+              </Text>
+            </View>
+
+            <Switch
+              value={isDark}
+              onValueChange={() => void toggleTheme()}
+              trackColor={{
+                false: colors.border,
+                true: colors.primary,
+              }}
+              thumbColor={colors.white}
+              ios_backgroundColor={colors.border}
+              accessibilityRole="switch"
+              accessibilityLabel="Dark mode"
+            />
+          </View>
 
           <View style={styles.separator} />
 
@@ -336,6 +399,7 @@ export default function MoreScreen() {
           </Text>
         </Pressable>
 
+        {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             Express Laundry · Version 1.0.0

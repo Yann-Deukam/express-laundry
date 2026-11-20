@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import {
   ArrowDownRight,
   ArrowRight,
+  Bell,
   CalendarDays,
   Clock3,
   Moon,
@@ -25,6 +26,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { AppColors } from "@/constants/colors";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useTheme } from "@/providers/ThemeProvider";
 import type { Order } from "@/services/orderService";
 
@@ -38,6 +40,7 @@ function formatDate(date: string) {
     month: "short",
   });
 }
+
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -187,11 +190,12 @@ function OrderRow({
 }
 
 export default function DashboardScreen() {
+  
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
-
+  
   const styles = useMemo(() => createStyles(colors), [colors]);
-
+  
   const {
     dueSoon,
     inProgress,
@@ -200,7 +204,10 @@ export default function DashboardScreen() {
     isError,
     refetch,
   } = useDashboard();
-
+  
+  function navigate(setting: string) {
+     router.push(`/(tabs)/settings/${setting}` as never);
+   }
   const handleRefresh = useCallback(() => {
     void refetch();
   }, [refetch]);
@@ -222,6 +229,11 @@ export default function DashboardScreen() {
   });
 
   const greeting = getGreeting();
+
+    const { unreadCount } = useNotifications();
+    function openNotifications() {
+    navigate("notifications");
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -259,6 +271,57 @@ export default function DashboardScreen() {
                 <Moon size={19} color={colors.text} />
               )}
             </Pressable>
+
+            <Pressable
+            onPress={openNotifications}
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 14,
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              unreadCount > 0
+                ? `${unreadCount} unread notifications`
+                : "Notifications"
+            }
+          >
+            <Bell color={colors.text} size={21} />
+
+            {unreadCount > 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: -5,
+                  right: -5,
+                  minWidth: 19,
+                  height: 19,
+                  borderRadius: 10,
+                  backgroundColor: colors.danger,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingHorizontal: 4,
+                  borderWidth: 2,
+                  borderColor: colors.background,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.white,
+                    fontSize: 9,
+                    fontWeight: "800",
+                  }}
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
 
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>EL</Text>
@@ -486,7 +549,7 @@ function createStyles(colors: AppColors) {
     themeToggle: {
       width: 42,
       height: 42,
-      borderRadius: 14,
+      borderRadius: 10,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,

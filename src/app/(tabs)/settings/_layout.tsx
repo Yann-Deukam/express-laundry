@@ -15,7 +15,6 @@ export default function SettingsLayout() {
       <Stack.Screen name="team-members" />
       <Stack.Screen name="pricing-payments" />
       <Stack.Screen name="account-profile" />
-      <Stack.Screen name="appearance" />
       <Stack.Screen name="help-support" />
       <Stack.Screen name="about-legal" />
     </Stack>
